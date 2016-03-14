@@ -13,6 +13,13 @@
 #include "fs.h"
 #include "file.h"
 #include "fcntl.h"
+//#include "user.h"
+
+#define MAX_HISTORY	16  //max size of history buf
+#define FAIL -1	//fail
+#define HISTORY_COPIED 0
+#define NO_HISTORY -1
+#define IILEGAL_HISTORYID -2
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -440,3 +447,54 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+char historyBuf[MAX_HISTORY][128];
+int p = 0;
+int sys_phistory(void){
+	char* buf;
+	if (argstr(0, &buf) < 0){
+		return FAIL;
+	}
+	if(p == MAX_HISTORY - 1){
+		int i;
+		for (i = 0; i < MAX_HISTORY - 1; ++i){
+			strncpy(historyBuf[i], historyBuf[i+1],strlen(historyBuf[i+1]));
+		}
+		strncpy(historyBuf[p], buf,strlen(buf));
+	}
+	else {
+		strncpy(historyBuf[p], buf,strlen(buf));
+		p++;
+	}
+	return 1;
+}
+
+int sys_history(void){
+	char* buf;
+	int idx;
+	if (argstr(0, &buf) < 0 || argint(1, &idx) < 0){
+		return FAIL;
+	}
+	if (idx >= MAX_HISTORY){
+		return IILEGAL_HISTORYID;
+	}
+	if (idx > p){
+		return NO_HISTORY;
+	}
+	strncpy(buf, historyBuf[idx],strlen(historyBuf[idx]));
+	return HISTORY_COPIED;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
