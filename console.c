@@ -13,7 +13,6 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-#include "user.h"
 
 #ifndef KEY_UP
 #define KEY_UP          0xE2
@@ -286,6 +285,14 @@ consoleintr(int (*getc)(void))
           input.e++;
           //input.buf[input.e++ % INPUT_BUF] = c;
           if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
+        	  if (input.e != input.p){
+        	  				int numput = input.e - input.p;
+        	  				input.p = input.e;
+        	  				int i;
+        	  				for (i=0; i < numput; ++i){
+        	  					consputc(KEY_RT);
+        	  				}
+        	  			}
             input.w = input.e;
             wakeup(&input.r);
           }
