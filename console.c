@@ -279,6 +279,14 @@ consoleintr(int (*getc)(void))
       default:
         if(c != 0 && input.e-input.r < INPUT_BUF) {
           c = (c == '\r') ? '\n' : c;
+          if (input.e != input.p && c == '\n'){
+        	  int numput = input.e - input.p;
+        	  input.p = input.e;
+        	  int i;
+        	  for (i=0; i < numput; ++i){
+        		  consputc(KEY_RT);
+        	  }
+          }
           consputc(c);
           uint i;
           int numput = 0;
@@ -297,14 +305,6 @@ consoleintr(int (*getc)(void))
           input.e++;
           //input.buf[input.e++ % INPUT_BUF] = c;
           if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
-        	  if (input.e != input.p){
-        	  				int numput = input.e - input.p;
-        	  				input.p = input.e;
-        	  				int i;
-        	  				for (i=0; i < numput; ++i){
-        	  					consputc(KEY_RT);
-        	  				}
-        	  			}
             input.w = input.e;
             wakeup(&input.r);
           }
