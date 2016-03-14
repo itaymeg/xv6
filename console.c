@@ -14,8 +14,8 @@
 #include "proc.h"
 #include "x86.h"
 
-#define LEFTARROW 228
-#define RIGHTARROW 229
+#define KEY_LF          0xE4
+#define KEY_RT          0xE5
 
 static void consputc(int);
 
@@ -144,9 +144,12 @@ cgaputc(int c)
     pos += 80 - pos%80;
   else if(c == BACKSPACE){
     if(pos > 0) --pos;
-  } else if (c == RIGHTARROW) {
-    if(pos > 0) --pos;
-  } else
+  } else if (c == KEY_RT) {
+    ++pos;
+  } else if ( c == KEY_LF) {
+	  if(pos > 0) --pos;
+  }
+  else
     crt[pos++] = (c&0xff) | 0x0700;  // black on white
   
   if(pos < 0 || pos > 25*80)
@@ -162,7 +165,9 @@ cgaputc(int c)
   outb(CRTPORT+1, pos>>8);
   outb(CRTPORT, 15);
   outb(CRTPORT+1, pos);
-  crt[pos] = ' ' | 0x0700;
+  if(c != KEY_RT && c != KEY_LF) {
+	  crt[pos] = ' ' | 0x0700;
+  }
 }
 
 void
@@ -207,38 +212,66 @@ consoleintr(int (*getc)(void))
         while(input.e != input.w &&
               input.buf[(input.e-1) % INPUT_BUF] != '\n'){
           input.e--;
+          input.p--;
           consputc(BACKSPACE);
         }
         break;
       case C('H'): case '\x7f':  // Backspace
-        if(input.e != input.w){
+    	if ((input.e != input.w) && (input.e != input.p)){
+    		int i;
+    		for (i = input.p-1; i < input.e; ++i) {
+    			input.buf[i] = input.buf[i+1];
+    		}
+    		input.e--;
+    		input.p--;
+    		consputc(KEY_LF);
+    		int numput = 0;
+    		for (i = input.p; i < input.e; ++i) {
+    			consputc(input.buf[i]);
+    			numput++;
+    		}
+    		for (i = 0; i < numput; ++i) {
+    			consputc(KEY_LF);
+    		}
+    	}
+    	else if(input.e != input.w){
           input.e--;
+          input.p--;
           consputc(BACKSPACE);
         }
         break;
-      case LEFTARROW:
+      case KEY_LF:
         if(input.p > input.w) {
           input.p--;
           consputc(c);
         }
         break;
-        case RIGHTARROW:
+        case KEY_RT:
         if(input.p < input.e) {
           input.p++;
           consputc(c);
         }
           break;
+
       default:
         if(c != 0 && input.e-input.r < INPUT_BUF) {
           c = (c == '\r') ? '\n' : c;
           consputc(c);
-          for (uint i = input.p; i <= input.e; ++i) {
+          uint i;
+          int numput = 0;
+          for (i = input.p; i < input.e; ++i) {
             consputc(input.buf[i]);
+            numput++;
           }
-          for (uint i = input.e; i >= input.p; ++i) {
+          for (i = 0; i < numput; ++i) {
+                      consputc(KEY_LF);
+          }
+          for (i = input.e; i > input.p-1; --i) {
             input.buf[i+1] = input.buf[i];
           }
           input.buf[input.p] = c;
+          input.p++;
+          input.e++;
           //input.buf[input.e++ % INPUT_BUF] = c;
           if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
             input.w = input.e;
