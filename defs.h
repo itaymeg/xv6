@@ -21,6 +21,9 @@ void            cprintf(char*, ...);
 void            consoleintr(int(*)(void));
 void            panic(char*) __attribute__((noreturn));
 
+//sysfile.c
+int 			sys_history(void);
+
 // exec.c
 int             exec(char*, char**);
 
@@ -147,6 +150,7 @@ int             argstr(int, char**);
 int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
+
 
 // timer.c
 void            timerinit(void);

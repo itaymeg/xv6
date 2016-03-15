@@ -26,6 +26,12 @@ main(int argc, char** argv) {
 		write(1,idBuf,3);
 		write(1,buf,strlen(buf));
 		write(1,"\n",1);
+		int j;
+		for(j = 0; j < 128; ++j){
+			buf[j] = 0;
+		}
 	}
+	free(buf);
+	free(idBuf);
 	exit();
 }
