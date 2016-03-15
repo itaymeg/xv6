@@ -21,6 +21,12 @@ sys_exit(void)
 }
 
 int
+sys_yield(void){
+	yield();
+	return 0;
+}
+
+int
 sys_wait(void)
 {
   return wait();
@@ -35,11 +41,28 @@ sys_wait2(void){
 	if(argint(0, &retimeAdd) < 0 || argint(1, &rutimeAdd) < 0 || argint(2, &stimeAdd) < 0){
 		return -1;
 	}
-	res = sys_wait();
-	*(int*)retimeAdd = proc->retime;
-	*(int*)rutimeAdd = proc->rutime;
-	*(int*)stimeAdd = proc->stime;
+	res = wait2(&retimeAdd, &rutimeAdd, &stimeAdd);
 	return res;
+}
+
+int
+sys_start_time(void){
+	int stimeAdd = 0;
+	if (argint(0, &stimeAdd) < 0){
+		return -1;
+	}
+	*(int *)stimeAdd = proc->ctime;
+	return 0;
+}
+
+int
+sys_set_prio(void){
+	int prio;
+	if (argint(0, &prio) < 0 || prio < 0 || prio > 3){
+		return -1;
+	}
+	proc->priority = prio;
+	return 0;
 }
 
 int

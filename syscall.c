@@ -48,6 +48,8 @@ argint(int n, int *ip)
   return fetchint(proc->tf->esp + 4 + 4*n, ip);
 }
 
+
+
 // Fetch the nth word-sized system call argument as a pointer
 // to a block of memory of size n bytes.  Check that the pointer
 // lies within the process address space.
@@ -100,6 +102,9 @@ extern int sys_write(void);
 extern int sys_uptime(void);
 extern int sys_history(void);
 extern int sys_wait2(void);
+extern int sys_set_prio(void);
+extern int sys_yield(void);
+extern int sys_start_time(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -124,7 +129,10 @@ static int (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_history]   sys_history,
-[SYS_wait2]   sys_wait2
+[SYS_wait2]   sys_wait2,
+[SYS_set_prio]   sys_set_prio,
+[SYS_yield]		sys_yield,
+[SYS_start_time] sys_start_time
 };
 
 void

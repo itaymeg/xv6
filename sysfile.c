@@ -395,6 +395,9 @@ sys_chdir(void)
 int
 sys_exec(void)
 {
+#ifdef DML
+  proc->priority = 2;
+#endif
   char *path, *argv[MAXARG];
   int i;
   uint uargv, uarg;
