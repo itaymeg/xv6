@@ -353,19 +353,13 @@ consoleintr(int (*getc)(void))
 			if(input.h < 15) {
 				//save curr buffer
 				if(input.h == 0) {
-					//char buf[128];
-					//strncpy(buf,input.buf+input.w,input.e-input.w);
 					strncpy(input.memBuf,input.buf+input.w,input.e-input.w);
 					int j;
-//					for(j = input.e-input.w; j < 128; ++j){
-//						buf[j] = 0;
-//					}
 					for(j = input.e-input.w; j < 128; ++j){
 						input.memBuf[j] = 0;
 					}
 
 					if(input.e-input.w > 0){
-					//	console_phistory(buf);
 						input.memBufIn = 1;
 					}
 				}
@@ -398,11 +392,6 @@ consoleintr(int (*getc)(void))
 				}
 
 			}
-//			else{
-//				char buf[128];
-//				console_history(buf,input.h);
-//
-//			}
 			break;
 		case KEY_DN:
 			if (1){
@@ -410,10 +399,8 @@ consoleintr(int (*getc)(void))
 			if(input.h > 0) {
 				console_history(buf,historyIdx - input.h);
 				input.h--;
-				//char buf[128];
 			}
 			else{
-				//char buf[128];
 				strncpy(buf, input.memBuf, strlen(input.memBuf));
 				int j;
 				for(j = strlen(input.memBuf); j < 128; ++j){
@@ -441,7 +428,6 @@ consoleintr(int (*getc)(void))
 				input.r = 0;
 				input.p = strlen(buf);
 				input.e = strlen(buf);
-	//		}
 			}
 
 			break;
