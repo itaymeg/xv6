@@ -32,6 +32,48 @@ idtinit(void)
   lidt(idt, sizeof(idt));
 }
 
+
+//procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+//void updateTime(){
+//	acquire(&ptable.lock);
+//	struct proc *p;
+//	acquire(&ptable.lock);
+//	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//		switch(p->state){
+//		case SLEEPING:
+//			p->stime++;
+//			break;
+//		case RUNNABLE:
+//			p->retime++;
+//			break;
+//		case RUNNING:
+//			p->rutime++;
+//			break;
+//		default:
+//			break;
+//		}
+//	}
+//	release(&ptable.lock);
+//}
+
+//void updateTime(){
+//	if (proc!= 0){
+//		switch(proc->state){
+//		case SLEEPING:
+//			proc->stime++;
+//			break;
+//		case RUNNABLE:
+//			proc->retime++;
+//			break;
+//		case RUNNING:
+//			proc->rutime++;
+//			break;
+//		default:
+//			break;
+//		}
+//	}
+//}
+
 //PAGEBREAK: 41
 void
 trap(struct trapframe *tf)
@@ -51,6 +93,7 @@ trap(struct trapframe *tf)
     if(cpu->id == 0){
       acquire(&tickslock);
       ticks++;
+      updateTime();
       wakeup(&ticks);
       release(&tickslock);
     }

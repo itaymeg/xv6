@@ -19,6 +19,8 @@ struct cpu {
 extern struct cpu cpus[NCPU];
 extern int ncpu;
 
+void updateTime();
+
 // Per-CPU variables, holding pointers to the
 // current cpu and to the current process.
 // The asm suffix tells gcc to use "%gs:0" to refer to cpu
@@ -66,6 +68,10 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int ctime;				   //	creation time
+  int stime;				   //	sleeping time
+  int retime;			       //	ready time
+  int rutime;				   //	running time
 };
 
 // Process memory is laid out contiguously, low addresses first:

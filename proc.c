@@ -69,7 +69,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
+  p->ctime = ticks;
   return p;
 }
 
@@ -463,4 +463,25 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+void updateTime(){
+	struct proc *p;
+	acquire(&ptable.lock);
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		switch(p->state){
+		case SLEEPING:
+			p->stime++;
+			break;
+		case RUNNABLE:
+			p->retime++;
+			break;
+		case RUNNING:
+			p->rutime++;
+			break;
+		default:
+			break;
+		}
+	}
+	release(&ptable.lock);
 }

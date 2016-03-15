@@ -27,6 +27,22 @@ sys_wait(void)
 }
 
 int
+sys_wait2(void){
+	int retimeAdd = 0;
+	int rutimeAdd = 0;
+	int stimeAdd = 0;
+	int res = 0;
+	if(argint(0, &retimeAdd) < 0 || argint(1, &rutimeAdd) < 0 || argint(2, &stimeAdd) < 0){
+		return -1;
+	}
+	res = sys_wait();
+	*(int*)retimeAdd = proc->retime;
+	*(int*)rutimeAdd = proc->rutime;
+	*(int*)stimeAdd = proc->stime;
+	return res;
+}
+
+int
 sys_kill(void)
 {
   int pid;
