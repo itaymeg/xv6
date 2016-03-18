@@ -1,9 +1,0 @@
-module prlvtg 1.0;
-
-require {
-	type xdm_t;
-	type proc_t;
-	class file write;
-}
-
-allow xdm_t proc_t:file write;

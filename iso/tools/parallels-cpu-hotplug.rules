@@ -1,1 +1,0 @@
-ACTION=="add", KERNEL=="cpu[0-9]*", RUN+="/bin/bash -c 'echo 1 > /sys/devices/system/cpu/%k/online'"
