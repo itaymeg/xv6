@@ -204,6 +204,7 @@ struct {
   uint w;  // Write index
   uint e;  // Edit index
   uint p;
+  uint h;
 } input;
 
 #define C(x)  ((x)-'@')  // Control-x
@@ -263,7 +264,18 @@ consoleintr(int (*getc)(void))
           consputc(c);
         }
           break;
+		case KEY_UP:
+			if(input.h < 15) {
+				//save curr buffer
 
+				//get next buffer in line
+			}
+			break;
+		case KEY_DN:
+			if(input.h > 0) {
+
+			}
+			break;
       default:
         if(c != 0 && input.e-input.r < INPUT_BUF) {
           c = (c == '\r') ? '\n' : c;
