@@ -13,9 +13,21 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
+#include "user.h"
 
+#ifndef KEY_UP
+#define KEY_UP          0xE2
+#endif
+#ifndef KEY_DN
+#define KEY_DN          0xE3
+#endif
+#ifndef KEY_LF
 #define KEY_LF          0xE4
+#endif
+#ifndef KEY_RT
 #define KEY_RT          0xE5
+#endif
+
 
 static void consputc(int);
 
