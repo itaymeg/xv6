@@ -302,15 +302,15 @@ consoleintr(int (*getc)(void))
 	while((c = getc()) >= 0){
 		switch(c){
 		case C('P'):  // Process listing.
-        		doprocdump = 1;   // procdump() locks cons.lock indirectly; invoke later
+        				doprocdump = 1;   // procdump() locks cons.lock indirectly; invoke later
 		break;
 		case C('U'):  // Kill line.
-        		while(input.e != input.w &&
-        				input.buf[(input.e-1) % INPUT_BUF] != '\n'){
-        			input.e--;
-        			input.p--;
-        			consputc(BACKSPACE);
-        		}
+        				while(input.e != input.w &&
+        						input.buf[(input.e-1) % INPUT_BUF] != '\n'){
+        					input.e--;
+        					input.p--;
+        					consputc(BACKSPACE);
+        				}
 		break;
 		case C('H'): case '\x7f':  // Backspace
 			if ((input.e != input.w) && (input.e != input.p)){
@@ -350,9 +350,9 @@ consoleintr(int (*getc)(void))
 			break;
 
 		case KEY_UP:
-			if(input.h < 15) {
+			if( 0 < input.h && input.h <= historyIdx) {
 				//save curr buffer
-				if(input.h == 0) {
+				if(input.h == historyIdx) {
 					strncpy(input.memBuf,input.buf+input.w,input.e-input.w);
 					int j;
 					for(j = input.e-input.w; j < 128; ++j){
@@ -365,15 +365,55 @@ consoleintr(int (*getc)(void))
 				}
 				//get next buffer in line
 				char buf[128];
-				input.h++;
-				if (console_history(buf,historyIdx - input.h) == 0){
+				input.h--;
+				if (console_history(buf,input.h) == 0){
+					int pos;
+					//move marker to begining of line
+					for(pos = input.w; pos < input.e; ++pos) {
+						consputc(KEY_LF);
+					}
+
+					int siz = input.e - input.w - strlen(buf);
+					//print the history pulled command
+					for(pos = 0; pos < strlen(buf); ++pos) {
+						consputc(buf[pos]);
+					}
+					for(pos = 0; pos < siz; ++pos) {
+						consputc(' ' | 0x700);
+					}
+					for (pos = 0; pos < siz; ++pos) {
+						consputc(KEY_LF);
+					}
+					strncpy(input.buf,buf,128);
+					input.w = 0;
+					input.r = 0;
+					input.p = strlen(buf);
+					input.e = strlen(buf);
+				}
+
+			}
+			break;
+		case KEY_DN:
+			if(input.h <= historyIdx-1) {
+				char buf[128];
+				if(input.h < historyIdx -1) {
+					input.h++;
+					console_history(buf,input.h);
+				}
+				else if(input.h == historyIdx-1){
+					input.h++;
+					strncpy(buf, input.memBuf, strlen(input.memBuf));
+					int j;
+					for(j = strlen(input.memBuf); j < 128; ++j){
+						buf[j] = 0;
+					}
+				}
 				int pos;
-				//move marker to begining of line
+				int siz = input.e - input.w - strlen(buf);
+				//move marker to the beginning of  the line
 				for(pos = input.w; pos < input.e; ++pos) {
 					consputc(KEY_LF);
 				}
-
-				int siz = input.e - input.w - strlen(buf);
 				//print the history pulled command
 				for(pos = 0; pos < strlen(buf); ++pos) {
 					consputc(buf[pos]);
@@ -389,47 +429,7 @@ consoleintr(int (*getc)(void))
 				input.r = 0;
 				input.p = strlen(buf);
 				input.e = strlen(buf);
-				}
-
 			}
-			break;
-		case KEY_DN:
-			if (1){
-			char buf[128];
-			if(input.h > 0) {
-				console_history(buf,historyIdx - input.h);
-				input.h--;
-			}
-			else{
-				strncpy(buf, input.memBuf, strlen(input.memBuf));
-				int j;
-				for(j = strlen(input.memBuf); j < 128; ++j){
-					buf[j] = 0;
-				}
-			}
-				int pos;
-				int siz = input.e - input.w - strlen(buf);
-				//move marker to the beginning of  the line
-				for(pos = input.w; pos < input.e; ++pos) {
-					consputc(KEY_LF);
-				}
-				//print the history pulled command
-				for(pos = 0; pos< strlen(buf); ++pos) {
-					consputc(buf[pos]);
-				}
-				for(pos = 0; pos < siz; ++pos) {
-					consputc(' ' | 0x700);
-				}
-				for (pos = 0; pos < siz; ++pos) {
-					consputc(KEY_LF);
-				}
-				strncpy(input.buf,buf,128);
-				input.w = 0;
-				input.r = 0;
-				input.p = strlen(buf);
-				input.e = strlen(buf);
-			}
-
 			break;
 		default:
 			if(c != 0 && input.e-input.r < INPUT_BUF) {
@@ -443,6 +443,7 @@ consoleintr(int (*getc)(void))
 						toPush[j] = 0;
 					}
 					console_phistory(toPush);
+					input.h = historyIdx;
 				}
 				if (input.e != input.p && c == '\n'){
 					int numput = input.e - input.p;
