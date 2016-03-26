@@ -71,6 +71,9 @@ found:
   p->context->eip = (uint)forkret;
   p->ctime = ticks;
   p->priority = 2;
+  p->stime = 0;
+  p->retime = 0;
+  p->rutime = 0;
   p->enterQTime = ticks;
   return p;
 }
@@ -149,7 +152,6 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
   np->priority = proc->priority;
-
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -367,8 +369,8 @@ scheduler(void)
 		  // to release ptable.lock and then reacquire it
 		  // before jumping back to us.
 		  proc = best;
-		  switchuvm(p);
-		  p->state = RUNNING;
+		  switchuvm(proc);
+		  proc->state = RUNNING;
 		  swtch(&cpu->scheduler, proc->context);
 		  switchkvm();
 
@@ -407,54 +409,62 @@ scheduler(void)
 	       // to release ptable.lock and then reacquire it
 	       // before jumping back to us.
 	       proc = best;
-	       switchuvm(p);
-	       p->state = RUNNING;
+	       switchuvm(proc);
+	       proc->state = RUNNING;
 	       swtch(&cpu->scheduler, proc->context);
 	       switchkvm();
 
 	       // Process is done running for now.
 	       // It should have changed its p->state before coming back.
 	       proc = 0;
-	     }
-	     release(&ptable.lock);
 
-	   }
+	     release(&ptable.lock);
+}
+
 
 #endif
 
 #ifdef DML
-	   struct proc *p;
+struct proc *p;
 
-	    for(;;){
-	      // Enable interrupts on this processor.
-	      sti();
+ for(;;){
+   // Enable interrupts on this processor.
+   sti();
 
-	      // Loop over process table looking for process to run.
-	      acquire(&ptable.lock);
-	      for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-	        if(p->state != RUNNABLE)
-	          continue;
+   // Loop over process table looking for process to run.
+   int prio;
+   acquire(&ptable.lock);
+   int gotFirst = 0;
+   struct proc * best = ptable.proc;
+   for (prio = 3; prio > 0; --prio){
+  	 for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+  		 if ((p->state == RUNNABLE) && (gotFirst==0 || (p->priority > prio) || (p->priority == prio && p->enterQTime < best->enterQTime))) {
+  			 best=p;
+  			 gotFirst=1;
+  		 }
+  	 }
+   }
+   best->enterQTime = ticks;
+     // Switch to chosen process.  It is the process's job
+     // to release ptable.lock and then reacquire it
+     // before jumping back to us.
+     proc = best;
+     switchuvm(proc);
+     proc->state = RUNNING;
+     swtch(&cpu->scheduler, proc->context);
+     switchkvm();
 
-	        // Switch to chosen process.  It is the process's job
-	        // to release ptable.lock and then reacquire it
-	        // before jumping back to us.
-	        proc = p;
-	        switchuvm(p);
-	        p->state = RUNNING;
-	        swtch(&cpu->scheduler, proc->context);
-	        switchkvm();
+     // Process is done running for now.
+     // It should have changed its p->state before coming back.
+     proc = 0;
 
-	        // Process is done running for now.
-	        // It should have changed its p->state before coming back.
-	        proc = 0;
-	      }
-	      release(&ptable.lock);
+   release(&ptable.lock);
 
-	    }
+   }
 
 #endif
 
-}
+ }
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state.

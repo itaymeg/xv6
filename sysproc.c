@@ -41,9 +41,10 @@ sys_wait2(void){
 	if(argint(0, &retimeAdd) < 0 || argint(1, &rutimeAdd) < 0 || argint(2, &stimeAdd) < 0){
 		return -1;
 	}
-	res = wait2(&retimeAdd, &rutimeAdd, &stimeAdd);
+	res = wait2((int*) retimeAdd,(int*) rutimeAdd,(int*) stimeAdd);
 	return res;
 }
+
 
 int
 sys_start_time(void){

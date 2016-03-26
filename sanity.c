@@ -9,7 +9,6 @@ int main(int argc, char** argv) {
 		int cpuRetime = 0, cpuStime = 0, cpuTurnaround = 0;
 		int scpuRetime = 0, scpuStime = 0, scpuTurnaround = 0;
 		int ioRetime = 0, ioStime = 0, ioTurnaround = 0;
-		//		int dummy = 0;
 		char* type;
 		int n = atoi(argv[1]);
 		int i;
