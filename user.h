@@ -28,6 +28,7 @@ int wait2(int* ,int*, int*);
 int set_prio(int);
 int yield(void);
 int start_time(int*);
+int getprio(int);
 
 // ulib.c
 int stat(char*, struct stat*);

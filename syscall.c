@@ -105,6 +105,7 @@ extern int sys_wait2(void);
 extern int sys_set_prio(void);
 extern int sys_yield(void);
 extern int sys_start_time(void);
+extern int sys_getprio(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -132,7 +133,8 @@ static int (*syscalls[])(void) = {
 [SYS_wait2]   sys_wait2,
 [SYS_set_prio]   sys_set_prio,
 [SYS_yield]		sys_yield,
-[SYS_start_time] sys_start_time
+[SYS_start_time] sys_start_time,
+[SYS_getprio]	sys_getprio
 };
 
 void

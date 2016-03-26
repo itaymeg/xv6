@@ -20,6 +20,7 @@ extern struct cpu cpus[NCPU];
 extern int ncpu;
 
 void updateTime();
+int getPriority(int);
 
 // Per-CPU variables, holding pointers to the
 // current cpu and to the current process.

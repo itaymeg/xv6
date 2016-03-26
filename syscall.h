@@ -25,3 +25,4 @@
 #define SYS_set_prio 24
 #define SYS_yield	25
 #define SYS_start_time 26
+#define SYS_getprio	27

@@ -8,7 +8,6 @@ int main(int argc, char *argv[])
 	int retime = 0, rutime = 0, stime = 0, ctime = 0;
 
 	int terminationTime = 0;
-
 	for (counter=0; counter < 20; counter++){
 		int priority;
 		int pid = fork();
@@ -28,8 +27,9 @@ int main(int argc, char *argv[])
 			childPID = wait2(&retime, &rutime, &stime);
 			start_time(&ctime);
 			terminationTime = ctime + retime + rutime + stime;
-			priority = (childPID % 3) +1;
 			if (childPID != -1){
+				//printf(2, "cPID = %d\n", childPID);
+				priority = getprio(childPID); //(childPID % 3) +1;
 				printf(2, "PID = %d, Termination Time = %d, Priority = %d\n", childPID, terminationTime, priority);
 
 			}
