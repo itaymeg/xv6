@@ -21,49 +21,9 @@ sys_exit(void)
 }
 
 int
-sys_yield(void){
-	yield();
-	return 0;
-}
-
-int
 sys_wait(void)
 {
   return wait();
-}
-
-int
-sys_wait2(void){
-	int retimeAdd = 0;
-	int rutimeAdd = 0;
-	int stimeAdd = 0;
-	int res = 0;
-	if(argint(0, &retimeAdd) < 0 || argint(1, &rutimeAdd) < 0 || argint(2, &stimeAdd) < 0){
-		return -1;
-	}
-	res = wait2((int*) retimeAdd,(int*) rutimeAdd,(int*) stimeAdd);
-	return res;
-}
-
-
-int
-sys_start_time(void){
-	int stimeAdd = 0;
-	if (argint(0, &stimeAdd) < 0){
-		return -1;
-	}
-	*(int *)stimeAdd = proc->ctime;
-	return 0;
-}
-
-int
-sys_set_prio(void){
-	int prio;
-	if (argint(0, &prio) < 0 || prio < 0 || prio > 3){
-		return -1;
-	}
-	proc->priority = prio;
-	return 0;
 }
 
 int
@@ -115,14 +75,6 @@ sys_sleep(void)
   }
   release(&tickslock);
   return 0;
-}
-
-int
-sys_getprio(void){
-	int pid;
-	if(argint(0, &pid) < 0)
-		return -1;
-	return getPriority(pid);
 }
 
 // return how many clock tick interrupts have occurred

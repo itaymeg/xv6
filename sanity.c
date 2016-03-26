@@ -42,42 +42,56 @@ int main(int argc, char** argv) {
 				exit();
 			}
 			else {
-				wait2(&retime, &rutime, &stime);
 				if (pid != -1){
 					if(pid % 3 == 0){
-						type = "CPU";
-						cpuStime = cpuStime + stime;
-						cpuRetime = cpuRetime + retime;
-						turnaround = retime + rutime + stime;
-						cpuTurnaround = cpuTurnaround + turnaround;
-						sumCpu = sumCpu + 1;
+						sumCpu++;
 					}
 					else if(pid % 3 == 1){
-						type = "S-CPU";
-						scpuStime = scpuStime + stime;
-						scpuRetime = scpuRetime + retime;
-						turnaround = retime + rutime + stime;
-						scpuTurnaround = scpuTurnaround + turnaround;
-						sumScpu = sumScpu + 1;
+						sumScpu++;
 					}
 					else{
-						type = "I/O";
-						ioStime = ioStime + stime;
-						ioRetime = ioRetime + retime;
-						turnaround = retime + rutime + stime;
-						ioTurnaround = ioTurnaround + turnaround;
-						sumIo = sumIo + 1;
+						sumIo++;
 					}
 				}
-				printf(2,"Type = %s, ", type);
-				printf(2,"PID = %d, ", pid);
-				printf(2,"Wait Time = %d, ", retime);
-				printf(2,"Run Time = %d, ", rutime);
-				printf(2,"I/O Time = %d\n", stime);
-
 			}
+		}
+
+		for (i = 0; i < 3 * n; ++i){
+			pid = wait2(&retime, &rutime, &stime);
+			if (pid != -1){
+				if(pid % 3 == 0){
+					type = "CPU";
+					cpuStime = cpuStime + stime;
+					cpuRetime = cpuRetime + retime;
+					turnaround = retime + rutime + stime;
+					cpuTurnaround = cpuTurnaround + turnaround;
+				}
+				else if(pid % 3 == 1){
+					type = "S-CPU";
+					scpuStime = scpuStime + stime;
+					scpuRetime = scpuRetime + retime;
+					turnaround = retime + rutime + stime;
+					scpuTurnaround = scpuTurnaround + turnaround;
+				}
+				else{
+					type = "I/O";
+					ioStime = ioStime + stime;
+					ioRetime = ioRetime + retime;
+					turnaround = retime + rutime + stime;
+					ioTurnaround = ioTurnaround + turnaround;
+				}
+			}
+			printf(2,"Type = %s, ", type);
+			printf(2,"PID = %d, ", pid);
+			printf(2,"Wait Time = %d, ", retime);
+			printf(2,"Run Time = %d, ", rutime);
+			printf(2,"I/O Time = %d\n", stime);
 
 		}
+
+
+
+
 		printf(2,"CPU:\n");
 		printf(2,"Average Sleep Time      = %d\n", cpuStime/sumCpu);
 		printf(2,"Average Ready Time      = %d\n", cpuRetime/sumCpu);
@@ -93,5 +107,5 @@ int main(int argc, char** argv) {
 		printf(2,"Average Ready Time      = %d\n", ioRetime/sumIo);
 		printf(2,"Average Turnaround Time = %d\n", ioTurnaround/sumIo);
 	}
-	return 0;
+	exit();
 }

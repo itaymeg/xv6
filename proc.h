@@ -19,9 +19,6 @@ struct cpu {
 extern struct cpu cpus[NCPU];
 extern int ncpu;
 
-void updateTime();
-int getPriority(int);
-
 // Per-CPU variables, holding pointers to the
 // current cpu and to the current process.
 // The asm suffix tells gcc to use "%gs:0" to refer to cpu
@@ -59,22 +56,16 @@ struct proc {
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
+  volatile int state;          // Process state
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
-  void *chan;                  // If non-zero, sleeping on chan
+  volatile int chan;           // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  int ctime;				   //	creation time
-  int stime;				   //	sleeping time
-  int retime;			       //	ready time
-  int rutime;				   //	running time
-  int priority;			       //	process priority queue
-  int enterQTime;				   //	time enters priority
 };
 
 // Process memory is laid out contiguously, low addresses first:

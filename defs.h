@@ -21,9 +21,6 @@ void            cprintf(char*, ...);
 void            consoleintr(int(*)(void));
 void            panic(char*) __attribute__((noreturn));
 
-//sysfile.c
-int 			sys_history(void);
-
 // exec.c
 int             exec(char*, char**);
 
@@ -42,7 +39,7 @@ int             dirlink(struct inode*, char*, uint);
 struct inode*   dirlookup(struct inode*, char*, uint*);
 struct inode*   ialloc(uint, short);
 struct inode*   idup(struct inode*);
-void            iinit(int dev);
+void            iinit(void);
 void            ilock(struct inode*);
 void            iput(struct inode*);
 void            iunlock(struct inode*);
@@ -84,7 +81,7 @@ void            lapicstartap(uchar, uint);
 void            microdelay(int);
 
 // log.c
-void            initlog(int dev);
+void            initlog(void);
 void            log_write(struct buf*);
 void            begin_op();
 void            end_op();
@@ -119,7 +116,6 @@ void            sched(void);
 void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(void);
-int 			wait2(int*, int*, int*);
 void            wakeup(void*);
 void            yield(void);
 
@@ -151,7 +147,6 @@ int             argstr(int, char**);
 int             fetchint(uint, int*);
 int             fetchstr(uint, char**);
 void            syscall(void);
-
 
 // timer.c
 void            timerinit(void);
