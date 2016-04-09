@@ -514,6 +514,9 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value){
 }
 
 struct cstackframe *pop(struct cstack *cstack){
-	if (cstack->head.used == 0) return 0;
-	cstackframe * = cstack->head;
+	if (cstack->head->used == 0) return 0;
+	struct cstackframe * ans = cstack->head;
+	cstack->head->used = 0;
+	cstack->head = cstack->head->next;
+	return ans;
 }
