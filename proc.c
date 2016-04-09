@@ -30,9 +30,10 @@ int
 allocpid(void) 
 {
   int pid;
-  acquire(&ptable.lock);
-  pid = nextpid++;
-  release(&ptable.lock);
+  do {
+	  pid = nextpid;
+  }while (!cas(&nextpid,nextpid,nextpid+1));
+
   return pid;
 }
 //PAGEBREAK: 32
@@ -493,4 +494,26 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value){
+	int i;
+	for(i = 0; i < 10; i++){
+		if (cstack->frame[i].used == 0) break;
+	}
+	if (i == 10) {
+		return 0;
+	}
+	cstack->frame[i].sender_pid = sender_pid;
+	cstack->frame[i].recepient_pid = recepient_pid;
+	cstack->frame[i].value = value;
+	cstack->frame[i].used = 1;
+	cstack->frame[i].next = cstack->head;
+	cstack->head = &(cstack->frame[i]);
+	return 1;
+}
+
+struct cstackframe *pop(struct cstack *cstack){
+	if (cstack->head.used == 0) return 0;
+	cstackframe * = cstack->head;
 }

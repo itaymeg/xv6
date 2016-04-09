@@ -73,3 +73,47 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
+
+
+
+//decleration of a signal handler function
+typedef void (*sig_handler) (int pid, int value);
+
+//set a signal handler to be called when signals sent
+sig_handler sigset(sig_handler);
+
+//send a signal with the given value to a process with pid dest_pid
+int sigsend(int dest_pid, int value);
+
+//complete the signal handling context
+void sigret(void);
+
+//suspend the process until a new signal is received
+int sigpause(void);
+
+
+struct cstackframe {
+	int sender_pid;
+	int recepient_pid;
+	int value;
+	int used;
+	struct cstackframe *next;
+};
+
+struct cstack {
+	struct cstackframe frame[10];
+	struct cstackframe *head;
+};
+
+int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value);
+
+struct cstackframe *pop(struct cstack *cstack);
+
+
+
+
+
+
+
+
+
