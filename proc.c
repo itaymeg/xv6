@@ -65,7 +65,7 @@ allocproc(void)
 	for(idx = 0; idx < 10; idx++){
 		p->pending_signals.frame[idx].used = 0;
 	}
-	//p->pending_signals->head = &(p->pending_signals->frame[0]);
+	p->pending_signals.head = &(p->pending_signals.frame[0]);
 
 	// Allocate kernel stack.
 	if((p->kstack = kalloc()) == 0){
@@ -555,6 +555,23 @@ int sigsend(int dest_pid, int value){
 	if (p == &ptable.proc[NPROC]) return -1;
 	return push(&(p->pending_signals), proc->pid, dest_pid, value) -1;
 	//release(&ptable.lock);
+}
+
+int sigpause(){
+	for(;;){
+		//go to sleep
+		proc->chan = (int)proc;
+		proc->state = SLEEPING;
+
+		// wakeup condition
+		if(proc->pending_signals.head->used == 1){
+			proc->chan = 0;
+			proc->state = RUNNING;
+			break;
+		}
+		sched();
+	}
+	return 0;
 }
 
 extern void sigint(void);

@@ -21,3 +21,6 @@
 #define SYS_mkdir  20
 #define SYS_close  21
 #define SYS_sigret 22
+#define SYS_sigsend 23
+#define SYS_sigset 24
+#define SYS_sigpause 25
