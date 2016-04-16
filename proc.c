@@ -33,7 +33,6 @@ allocpid(void)
 	do {
 		pid = nextpid;
 	}while (!cas(&nextpid,nextpid,nextpid+1));
-
 	return pid;
 }
 //PAGEBREAK: 32
@@ -62,6 +61,12 @@ allocproc(void)
 
 	p->pid = allocpid();
 
+	int idx;
+	for(idx = 0; idx < 10; idx++){
+		p->pending_signals.frame[idx].used = 0;
+	}
+	//p->pending_signals->head = &(p->pending_signals->frame[0]);
+
 	// Allocate kernel stack.
 	if((p->kstack = kalloc()) == 0){
 		p->state = UNUSED;
@@ -82,7 +87,6 @@ allocproc(void)
 	p->context = (struct context*)sp;
 	memset(p->context, 0, sizeof *p->context);
 	p->context->eip = (uint)forkret;
-
 	return p;
 }
 
@@ -549,7 +553,7 @@ int sigsend(int dest_pid, int value){
 		if (p->pid == dest_pid && p->state != UNUSED) break;
 	}
 	if (p == &ptable.proc[NPROC]) return -1;
-	return push(p->pending_signals, proc->pid, dest_pid, value) -1;
+	return push(&(p->pending_signals), proc->pid, dest_pid, value) -1;
 	//release(&ptable.lock);
 }
 
@@ -561,7 +565,7 @@ int foo(){
 	struct proc * procRep = proc;
 	if(procRep->pid >= 0);
 	int size = (uint)sigintend - (uint)sigint;
-	struct cstackframe * poped = pop(proc->pending_signals);
+	struct cstackframe * poped = pop(&(proc->pending_signals));
 	if (poped != 0) {
 		int oldesp = proc->tf->esp-=4;
 		memmove((void *)oldesp/*dest=oldesp*/, (const void *)sigint, size);

@@ -1,6 +1,7 @@
 // Segments in proc->gdt.
 #define NSEGS     7
-#define PR(x) cprintf("CALLED=%d\n",x);
+#define PRN(x) cprintf("CALLED=%s\n",#x);
+#define PR(x) ;
 
 // Per-CPU state
 struct cpu {
@@ -101,7 +102,7 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   sig_handler sighandler;
-  struct cstack *pending_signals;
+  struct cstack pending_signals;
 };
 
 // Process memory is laid out contiguously, low addresses first:

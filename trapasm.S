@@ -27,7 +27,9 @@ alltraps:
 .globl trapret
 trapret:
   popal
+  pushal
   call foo
+  popal
   popl %gs
   popl %fs
   popl %es
