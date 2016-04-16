@@ -155,6 +155,7 @@ fork(void)
   }
   np->sz = proc->sz;
   np->parent = proc;
+  np->sighandler = proc->sighandler;
   *np->tf = *proc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -489,17 +490,22 @@ procdump(void)
     cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
-      for(i=0; i<10 && pc[i] != 0; i++)
+      for(i=0; i<10 && pc[i] != 0; i++) {
         cprintf(" %p", pc[i]);
     }
     cprintf("\n");
   }
 }
+}
+
+void sigret(){
+	proc->tf = proc->tfRep;
+}
 
 int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value){
 	int i;
 	for(i = 0; i < 10; i++){
-		if (cstack->frame[i].used == 0) break;
+		if (cas(&(cstack->frame[i].used),0,1)) break;
 	}
 	if (i == 10) {
 		return 0;
@@ -507,16 +513,61 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value){
 	cstack->frame[i].sender_pid = sender_pid;
 	cstack->frame[i].recepient_pid = recepient_pid;
 	cstack->frame[i].value = value;
-	cstack->frame[i].used = 1;
-	cstack->frame[i].next = cstack->head;
-	cstack->head = &(cstack->frame[i]);
+	struct cstackframe * replica;
+	do {
+		 replica = cstack->head;
+	} while (!cas((int *)&(cstack->head),(int)replica,(int)&(cstack->frame[i])));
+	cstack->frame[i].next = replica;
 	return 1;
 }
 
 struct cstackframe *pop(struct cstack *cstack){
-	if (cstack->head->used == 0) return 0;
+	while(cstack->head->used == 2);
+	if (!cas(&(cstack->head->used), 1, 2)) return 0;
 	struct cstackframe * ans = cstack->head;
-	cstack->head->used = 0;
 	cstack->head = cstack->head->next;
+	ans->used = 0;
 	return ans;
 }
+
+
+sig_handler sigset(sig_handler newSig){
+	sig_handler replica;
+	do {
+			 replica = proc->sighandler;
+		} while (!cas((int *)&(proc->sighandler),(int)replica,(int)newSig));
+	return replica;
+}
+
+int sigsend(int dest_pid, int value){
+	struct proc *p;
+	//acquire(&ptable.lock);
+	//TODO
+	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		if (p->pid == dest_pid) break;
+	}
+	return push(p->pending_signals, proc->pid, dest_pid, value) -1;
+	//release(&ptable.lock);
+}
+
+
+int foo(){
+	proc->tfRep = proc->tf;
+	extern void* sigint;
+	extern void* sigintend;
+	int size = sigintend - sigint;
+	int oldesp = proc->tf->esp-=4;
+	memmove((void *)oldesp/*dest=oldesp*/, (const void *)sigint, size);
+	int value = pop(proc->pending_signals)->value;
+	proc->tf->esp-=size;
+	memmove((void *)proc->tf->esp, (const void *)value, sizeof(int));
+	proc->tf->esp-=sizeof(int);
+	memmove((void *)proc->tf->esp, (const void *)oldesp, sizeof(int));
+	proc->tf->esp-=sizeof(int);
+	proc->tf->eip = (uint) proc->sighandler;
+	return 0;
+}
+
+
+
+

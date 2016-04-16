@@ -51,31 +51,6 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
-// Per-process state
-struct proc {
-  uint sz;                     // Size of process memory (bytes)
-  pde_t* pgdir;                // Page table
-  char *kstack;                // Bottom of kernel stack for this process
-  volatile int state;          // Process state
-  int pid;                     // Process ID
-  struct proc *parent;         // Parent process
-  struct trapframe *tf;        // Trap frame for current syscall
-  struct context *context;     // swtch() here to run process
-  volatile int chan;           // If non-zero, sleeping on chan
-  int killed;                  // If non-zero, have been killed
-  struct file *ofile[NOFILE];  // Open files
-  struct inode *cwd;           // Current directory
-  char name[16];               // Process name (debugging)
-};
-
-// Process memory is laid out contiguously, low addresses first:
-//   text
-//   original data and bss
-//   fixed-size stack
-//   expandable heap
-
-
-
 //decleration of a signal handler function
 typedef void (*sig_handler) (int pid, int value);
 
@@ -90,7 +65,6 @@ void sigret(void);
 
 //suspend the process until a new signal is received
 int sigpause(void);
-
 
 struct cstackframe {
 	int sender_pid;
@@ -108,6 +82,40 @@ struct cstack {
 int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value);
 
 struct cstackframe *pop(struct cstack *cstack);
+
+// Per-process state
+struct proc {
+  uint sz;                     // Size of process memory (bytes)
+  pde_t* pgdir;                // Page table
+  char *kstack;                // Bottom of kernel stack for this process
+  volatile int state;          // Process state
+  int pid;                     // Process ID
+  struct proc *parent;         // Parent process
+  struct trapframe *tf;        // Trap frame for current syscall
+  struct trapframe *tfRep;
+  struct context *context;     // swtch() here to run process
+  volatile int chan;           // If non-zero, sleeping on chan
+  int killed;                  // If non-zero, have been killed
+  struct file *ofile[NOFILE];  // Open files
+  struct inode *cwd;           // Current directory
+  char name[16];               // Process name (debugging)
+  sig_handler sighandler;
+  struct cstack *pending_signals;
+};
+
+// Process memory is laid out contiguously, low addresses first:
+//   text
+//   original data and bss
+//   fixed-size stack
+//   expandable heap
+
+
+
+
+
+
+
+
 
 
 

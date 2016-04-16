@@ -14,6 +14,12 @@ sys_fork(void)
 }
 
 int
+sys_sigret(void){
+	sigret();
+	return 0;
+}
+
+int
 sys_exit(void)
 {
   exit();
