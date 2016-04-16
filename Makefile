@@ -23,6 +23,7 @@ OBJS = \
 	sysproc.o\
 	timer.o\
 	trapasm.o\
+	sigint.o\
 	trap.o\
 	uart.o\
 	vectors.o\
@@ -134,7 +135,7 @@ tags: $(OBJS) entryother.S _init
 vectors.S: vectors.pl
 	perl vectors.pl > vectors.S
 
-ULIB = ulib.o usys.o printf.o umalloc.o
+ULIB = ulib.o usys.o printf.o umalloc.o sigint.o
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -144,7 +145,7 @@ _%: %.o $(ULIB)
 _forktest: forktest.o $(ULIB)
 	# forktest has less library code linked in - needs to be small
 	# in order to be able to max out the proc table.
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o sigint.o
 	$(OBJDUMP) -S _forktest > forktest.asm
 
 mkfs: mkfs.c fs.h

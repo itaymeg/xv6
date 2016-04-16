@@ -1,5 +1,6 @@
 // Segments in proc->gdt.
 #define NSEGS     7
+#define PR(x) cprintf("CALLED=%d\n",x);
 
 // Per-CPU state
 struct cpu {
@@ -92,7 +93,7 @@ struct proc {
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
-  struct trapframe *tfRep;
+  struct trapframe tfRep;
   struct context *context;     // swtch() here to run process
   volatile int chan;           // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed

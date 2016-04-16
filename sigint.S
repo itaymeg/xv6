@@ -1,6 +1,7 @@
-.global sigint
-.global sigintend
+.globl sigint
 sigint:
 movl $22,%eax
-int $T_SYSCALL
+int $0x40
+ret
+.globl sigintend
 sigintend:
