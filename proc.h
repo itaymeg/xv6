@@ -103,6 +103,7 @@ struct proc {
   char name[16];               // Process name (debugging)
   sig_handler sighandler;
   struct cstack pending_signals;
+  int busy;
 };
 
 // Process memory is laid out contiguously, low addresses first:

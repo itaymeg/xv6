@@ -60,7 +60,7 @@ allocproc(void)
 	//release(&ptable.lock);
 
 	p->pid = allocpid();
-
+	p->busy = 0;
 	int idx;
 	for(idx = 0; idx < 10; idx++){
 		p->pending_signals.frame[idx].used = 0;
@@ -505,7 +505,10 @@ procdump(void)
 }
 
 void sigret(){
+	if(proc == 0) return;
+	cprintf("CALLED\n");
 	*(proc->tf) = proc->tfRep;
+	cas(&proc->busy, 1, 0);
 }
 
 int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value){
@@ -528,17 +531,30 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value){
 }
 
 struct cstackframe *pop(struct cstack *cstack){
-	while(cstack->head->used == 2);
-	if (!cas(&(cstack->head->used), 1, 2)) return 0;
-	struct cstackframe * ans = cstack->head;
-	cstack->head = cstack->head->next;
-	ans->used = 0;
+	//TODO delete old code
+	//while(cstack->head->used == 2);
+	//if (!cas(&(cstack->head->used), 1, 2)) return 0;
+	if(proc->pid == 4 || proc->pid == 5){
+		int i = 0;
+		if(i);
+	}
+	if(cstack->head->used == 0) return 0;
+	struct cstackframe* ans;
+	do{
+		ans = cstack->head;
+	}
+	while(!cas((int *)&(cstack->head), (int)ans, (int)cstack->head->next));
+	//cstack->head = cstack->head->next;
+	//ans->used = 0;
 	return ans;
 }
 
 
 sig_handler sigset(sig_handler newSig){
 	sig_handler replica;
+	//TODO delete next two lines
+	int pid = proc->pid;
+	if(pid);
 	do {
 		replica = proc->sighandler;
 	} while (!cas((int *)&(proc->sighandler),(int)replica,(int)newSig));
@@ -569,30 +585,72 @@ int sigpause(){
 			proc->state = RUNNING;
 			break;
 		}
+		acquire(&ptable.lock);
 		sched();
+		release(&ptable.lock);
 	}
 	return 0;
 }
 
 extern void sigint(void);
 extern void sigintend(void);
+//int foo(){
+//	if(proc == 0) return 0;
+//	//if(!cas(&proc->busy, 0, 1))
+//	//	return 0;
+//	proc->tfRep = *(proc->tf);
+//	struct proc * procRep = proc;
+//	if(procRep->pid >= 0);
+//	int size = (uint)sigintend - (uint)sigint;
+//	struct cstackframe * poped = pop(&(proc->pending_signals));
+//	if (poped != 0) {
+//		int oldesp = proc->tf->esp;
+//		int value = poped->value;
+//		int pid = poped->recepient_pid;
+//		proc->tf->esp-=4;
+//		memmove((void *)proc->tf->esp, (const void *)value, sizeof(int));
+//		proc->tf->esp-=sizeof(int);
+//		memmove((void *)proc->tf->esp, (const void *)pid, sizeof(int));
+//		proc->tf->esp-=sizeof(int);
+//		memmove((void *)proc->tf->esp, (const void *)sigint, size);
+//		proc->tf->esp-=size;
+//		memmove((void *)proc->tf->esp, (const void *)oldesp, sizeof(int));
+//		proc->tf->esp-=sizeof(int);
+//		proc->tf->eip = (uint) proc->sighandler;
+//		poped->used = 0;
+//		return 0;
+//	} else {
+//		return 0;
+//	}
+//}
+
+
+
+
+
 int foo(){
 	if(proc == 0) return 0;
+	//if(!cas(&proc->busy, 0, 1))
+	//	return 0;
 	proc->tfRep = *(proc->tf);
 	struct proc * procRep = proc;
 	if(procRep->pid >= 0);
-	int size = (uint)sigintend - (uint)sigint;
+	int size = sigintend - sigint;
 	struct cstackframe * poped = pop(&(proc->pending_signals));
 	if (poped != 0) {
-		int oldesp = proc->tf->esp-=4;
-		memmove((void *)oldesp/*dest=oldesp*/, (const void *)sigint, size);
-		int value = poped->value;
+		int oldesp = proc->tf->esp-4;
+		proc->tf->esp-=4;
+		memmove((void*) proc->tf->esp, (void*) sigint, size);
 		proc->tf->esp-=size;
-		memmove((void *)proc->tf->esp, (const void *)value, sizeof(int));
+		int value = poped->value;
+		int pid = poped->recepient_pid;
+		*((uint*)(proc->tf->esp)) = value;
 		proc->tf->esp-=sizeof(int);
-		memmove((void *)proc->tf->esp, (const void *)oldesp, sizeof(int));
+		*((uint*)(proc->tf->esp)) = pid;
 		proc->tf->esp-=sizeof(int);
+		*((uint*)(proc->tf->esp)) = oldesp;
 		proc->tf->eip = (uint) proc->sighandler;
+		poped->used = 0;
 		return 0;
 	} else {
 		return 0;

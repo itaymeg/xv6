@@ -7,7 +7,7 @@ struct worker {
 
 int isPrime(int num){
 	int i;
-	for(i = 2; i < (num / 2); i++){
+	for(i = 2; i <= (num / 2); i++){
 		if (num % i == 0)
 			return 0;
 	}
@@ -32,6 +32,7 @@ struct worker findWorker(struct worker * workers,int size) {
 	int i;
 	for(i=0; i < size; ++i) {
 		if(workers[i].used == 0) {
+			workers[i].used = 1;
 			return workers[i];
 		}
 	}
@@ -54,7 +55,7 @@ void childHandler(int pid,int value) {
 		exit();
 	} else {
 		int nextPrime = getNextPrime(value);
-		printf(1,"worker %d returned %d as a result for %d", pid, nextPrime, value);
+		printf(1,"worker %d returned %d as a result for %d\n", pid, nextPrime, value);
 	}
 }
 
@@ -82,7 +83,7 @@ int main(int argc, char** argv) {
 
 	if(child == 0) { //parent
 		for (;;) {
-			printf(1,"please enter a number: ");
+			printf(1,"please enter a number: \n");
 			int enteredNum;
 			int legal = 0;
 			char buf[128];
@@ -95,13 +96,18 @@ int main(int argc, char** argv) {
 				legal = 1;
 			}
 			enteredNum = atoi(buf);
+//			printf(1, "num: %d\n", enteredNum);
+//			printf(1, "legal: %d\n", legal);
+//			printf(1, "buf: %s\n", buf);
 			if(legal == 0 && enteredNum ==0) continue;
 			if(enteredNum == 0) {
 				exitWorkers(workers,n);
 				printf(1,"primesrv exit\n");
 				exit();
 			}
+			//printf(1,"made it 1\n");
 			struct worker availWorker = findWorker(workers,n);
+			//printf(1,"made it 2,ret=%d\n",availWorker.used);
 			if(availWorker.used == 999) {
 				printf(1,"no idle workers\n");
 			} else {
@@ -112,7 +118,7 @@ int main(int argc, char** argv) {
 		exit();
 	} else if(child == 1) { // child
 		for(;;) {
-			sigpause();
+			//sigpause();
 		}
 		exit();
 	}
