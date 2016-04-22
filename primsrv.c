@@ -3,7 +3,11 @@
 struct worker {
 	int pid;
 	int used;
+	int sigValue;
 };
+
+struct worker * workers;
+int workersCount;
 
 int isPrime(int num){
 	int i;
@@ -28,21 +32,19 @@ int getNextPrime(int n){
 	return ans;
 }
 
-struct worker findWorker(struct worker * workers,int size) {
+int findWorker() {
 	int i;
-	for(i=0; i < size; ++i) {
+	for(i=0; i < workersCount; ++i) {
 		if(workers[i].used == 0) {
 			workers[i].used = 1;
-			return workers[i];
+			return i;
 		}
 	}
-	struct worker ret;
-	ret.used = 999;
-	return ret;
+	return -1;
 }
-void exitWorkers(struct worker * workers,int size) {
+void exitWorkers() {
 	int i;
-	for (i=0; i< size; ++i) {
+	for (i=0; i< workersCount; ++i) {
 		int ans = -1;
 		while (ans == -1) {
 			ans = sigsend(workers[i].pid,0);
@@ -53,37 +55,56 @@ void childHandler(int pid,int value) {
 	if(value == 0) {
 		printf(1,"worker %d exit",pid);
 		exit();
-	} else {
+	}
 		int nextPrime = getNextPrime(value);
-		printf(1,"worker %d returned %d as a result for %d\n", pid, nextPrime, value);
+		//printf(1,"worker %d returned %d as a result for %d\n", pid, nextPrime, value);
+		sigsend(pid,nextPrime);
+}
+void parentHandler(int pid,int value) {
+	int i;
+	for(i = 0; i < workersCount; ++i) {
+		if (pid == workers[i].pid)
+		{
+			workers[i].used = 0;
+			printf(1,"worker %d returned %d as a result for %d\n", pid, value, workers[i].sigValue);	
+			break;
+		}
+	}
+}
+void waitExitWorkers() {
+	int i;
+	for (i=0; i< workersCount; ++i) {
+		wait();
 	}
 }
 
 int main(int argc, char** argv) {
 	int n = atoi(argv[1]);
+	sigset(parentHandler);
+	workersCount = n;
+	workers= (struct worker *)malloc(workersCount*sizeof(struct worker));
 	int i;
 	int pid;
 	int child = 0;
-	struct worker workers[n];
 	printf(1,"workers pids:\n");
-	for(i=0; i< n; i++){
+	for(i=0; i < workersCount; i++){
 		workers[i].used = 0;
 		if((pid = fork()) > 0) {
 			workers[i].pid = pid;
 			printf(1,"%d\n",pid);
 		} else if ( pid < 0) {
 			printf(1,"fork failed!");
+			exit();
 		} else {
 			child = 1;
-			sig_handler handler = &childHandler;
-			sigset(handler);
+			sigset(childHandler);
 			break;
 		}
 	}
 
 	if(child == 0) { //parent
 		for (;;) {
-			printf(1,"please enter a number: \n");
+			printf(1,"please enter a number: ");
 			int enteredNum;
 			int legal = 0;
 			char buf[128];
@@ -96,29 +117,26 @@ int main(int argc, char** argv) {
 				legal = 1;
 			}
 			enteredNum = atoi(buf);
-//			printf(1, "num: %d\n", enteredNum);
-//			printf(1, "legal: %d\n", legal);
-//			printf(1, "buf: %s\n", buf);
 			if(legal == 0 && enteredNum ==0) continue;
 			if(enteredNum == 0) {
-				exitWorkers(workers,n);
+				exitWorkers();
+				waitExitWorkers();
+				free(workers);
 				printf(1,"primesrv exit\n");
 				exit();
 			}
-			//printf(1,"made it 1\n");
-			struct worker availWorker = findWorker(workers,n);
-			//printf(1,"made it 2,ret=%d\n",availWorker.used);
-			if(availWorker.used == 999) {
+			int availWorker = findWorker();
+			if(availWorker == -1) {
 				printf(1,"no idle workers\n");
 			} else {
-				availWorker.used = 1;
-				sigsend(availWorker.pid,enteredNum);
+				workers[availWorker].sigValue = enteredNum;
+				sigsend(workers[availWorker].pid,enteredNum);
 			}
 		}
 		exit();
 	} else if(child == 1) { // child
 		for(;;) {
-			//sigpause();
+			sigpause();
 		}
 		exit();
 	}
