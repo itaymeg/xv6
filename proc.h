@@ -51,7 +51,7 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, _SLEEPING, _RUNNABLE, _RUNNING, _ZOMBIE};
 
 //decleration of a signal handler function
 typedef void (*sig_handler) (int pid, int value);
