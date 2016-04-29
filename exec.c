@@ -2,9 +2,9 @@
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
+#include "proc.h"
 #include "defs.h"
 #include "x86.h"
-#include "proc.h"
 #include "elf.h"
 
 int
@@ -92,7 +92,6 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
-  proc->sighandler = (sig_handler)(-1);
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;

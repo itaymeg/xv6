@@ -3,6 +3,7 @@
 // Output is written to the screen and serial port.
 
 #include "types.h"
+#include "defs.h"
 #include "param.h"
 #include "traps.h"
 #include "spinlock.h"
@@ -10,10 +11,8 @@
 #include "file.h"
 #include "memlayout.h"
 #include "mmu.h"
-#include "x86.h"
-#include "defs.h"
 #include "proc.h"
-
+#include "x86.h"
 
 static void consputc(int);
 
@@ -144,6 +143,9 @@ cgaputc(int c)
     if(pos > 0) --pos;
   } else
     crt[pos++] = (c&0xff) | 0x0700;  // black on white
+
+  if(pos < 0 || pos > 25*80)
+    panic("pos under/overflow");
   
   if((pos/80) >= 24){  // Scroll up.
     memmove(crt, crt+80, sizeof(crt[0])*23*80);
@@ -176,7 +178,6 @@ consputc(int c)
 
 #define INPUT_BUF 128
 struct {
-  struct spinlock lock;
   char buf[INPUT_BUF];
   uint r;  // Read index
   uint w;  // Write index
@@ -188,13 +189,13 @@ struct {
 void
 consoleintr(int (*getc)(void))
 {
-  int c;
+  int c, doprocdump = 0;
 
-  acquire(&input.lock);
+  acquire(&cons.lock);
   while((c = getc()) >= 0){
     switch(c){
     case C('P'):  // Process listing.
-      procdump();
+      doprocdump = 1;   // procdump() locks cons.lock indirectly; invoke later
       break;
     case C('U'):  // Kill line.
       while(input.e != input.w &&
@@ -222,7 +223,10 @@ consoleintr(int (*getc)(void))
       break;
     }
   }
-  release(&input.lock);
+  release(&cons.lock);
+  if(doprocdump) {
+    procdump();  // now call procdump() wo. cons.lock held
+  }
 }
 
 int
@@ -233,15 +237,15 @@ consoleread(struct inode *ip, char *dst, int n)
 
   iunlock(ip);
   target = n;
-  acquire(&input.lock);
+  acquire(&cons.lock);
   while(n > 0){
     while(input.r == input.w){
       if(proc->killed){
-        release(&input.lock);
+        release(&cons.lock);
         ilock(ip);
         return -1;
       }
-      sleep(&input.r, &input.lock);
+      sleep(&input.r, &cons.lock);
     }
     c = input.buf[input.r++ % INPUT_BUF];
     if(c == C('D')){  // EOF
@@ -257,7 +261,7 @@ consoleread(struct inode *ip, char *dst, int n)
     if(c == '\n')
       break;
   }
-  release(&input.lock);
+  release(&cons.lock);
   ilock(ip);
 
   return target - n;
@@ -282,7 +286,6 @@ void
 consoleinit(void)
 {
   initlock(&cons.lock, "console");
-  initlock(&input.lock, "input");
 
   devsw[CONSOLE].write = consolewrite;
   devsw[CONSOLE].read = consoleread;

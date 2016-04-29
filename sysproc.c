@@ -10,98 +10,71 @@
 int
 sys_fork(void)
 {
-	return fork();
-}
-
-int
-sys_sigret(void){
-	sigret();
-	return 0;
-}
-
-int
-sys_sigsend(){
-	int a,b;
-	if(argint(0, &a) < 0 || argint(1, &b) < 0)
-		return -1;
-	return sigsend(a,b);
-}
-
-int	//sig_handler h
-sys_sigset(){
-	int h;
-	if(argint(0, &h) < 0)
-		return -1;
-	return (int)sigset((sig_handler)h);
-}
-
-int
-sys_sigpause(){
-	return sigpause();
+  return fork();
 }
 
 int
 sys_exit(void)
 {
-	exit();
-	return 0;  // not reached
+  exit();
+  return 0;  // not reached
 }
 
 int
 sys_wait(void)
 {
-	return wait();
+  return wait();
 }
 
 int
 sys_kill(void)
 {
-	int pid;
+  int pid;
 
-	if(argint(0, &pid) < 0)
-		return -1;
-	return kill(pid);
+  if(argint(0, &pid) < 0)
+    return -1;
+  return kill(pid);
 }
 
 int
 sys_getpid(void)
 {
-	return proc->pid;
+  return proc->pid;
 }
 
 int
 sys_sbrk(void)
 {
-	int addr;
-	int n;
+  int addr;
+  int n;
 
-	if(argint(0, &n) < 0)
-		return -1;
-	addr = proc->sz;
-	if(growproc(n) < 0)
-		return -1;
-	return addr;
+  if(argint(0, &n) < 0)
+    return -1;
+  addr = proc->sz;
+  if(growproc(n) < 0)
+    return -1;
+  return addr;
 }
 
 int
 sys_sleep(void)
 {
-	int n;
-	uint ticks0;
-
-	if(argint(0, &n) < 0)
-		return -1;
-	acquire(&tickslock);
-	ticks0 = ticks;
-	while(ticks - ticks0 < n){
-		if(proc->killed){
-			release(&tickslock);
-			return -1;
-		}
-		sleep(&ticks, &tickslock);
-	}
-	release(&tickslock);
-	return 0;
+  int n;
+  uint ticks0;
+  
+  if(argint(0, &n) < 0)
+    return -1;
+  acquire(&tickslock);
+  ticks0 = ticks;
+  while(ticks - ticks0 < n){
+    if(proc->killed){
+      release(&tickslock);
+      return -1;
+    }
+    sleep(&ticks, &tickslock);
+  }
+  release(&tickslock);
+  return 0;
 }
 
 // return how many clock tick interrupts have occurred
@@ -109,10 +82,10 @@ sys_sleep(void)
 int
 sys_uptime(void)
 {
-	uint xticks;
-
-	acquire(&tickslock);
-	xticks = ticks;
-	release(&tickslock);
-	return xticks;
+  uint xticks;
+  
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+  return xticks;
 }

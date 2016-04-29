@@ -1,7 +1,5 @@
 // Segments in proc->gdt.
 #define NSEGS     7
-#define PRN(x) cprintf("CALLED=%s\n",#x);
-#define PR(x) ;
 
 // Per-CPU state
 struct cpu {
@@ -51,59 +49,27 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, _SLEEPING, _RUNNABLE, _RUNNING, _ZOMBIE};
-
-//decleration of a signal handler function
-typedef void (*sig_handler) (int pid, int value);
-
-//set a signal handler to be called when signals sent
-sig_handler sigset(sig_handler);
-
-//send a signal with the given value to a process with pid dest_pid
-int sigsend(int dest_pid, int value);
-
-//complete the signal handling context
-void sigret(void);
-
-//suspend the process until a new signal is received
-int sigpause(void);
-
-struct cstackframe {
-	int sender_pid;
-	int recepient_pid;
-	int value;
-	int used;
-	struct cstackframe *next;
-};
-
-struct cstack {
-	struct cstackframe frame[10];
-	struct cstackframe *head;
-};
-
-int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value);
-
-struct cstackframe *pop(struct cstack *cstack);
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
-  volatile int state;          // Process state
+  enum procstate state;        // Process state
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
-  struct trapframe tfRep;
   struct context *context;     // swtch() here to run process
-  volatile int chan;           // If non-zero, sleeping on chan
+  void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  sig_handler sighandler;
-  struct cstack pending_signals;
-  int busy;
+
+  //Swap file. must initiate with create swap file
+  struct file *swapFile;			//page file
+
 };
 
 // Process memory is laid out contiguously, low addresses first:
@@ -111,20 +77,3 @@ struct proc {
 //   original data and bss
 //   fixed-size stack
 //   expandable heap
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
