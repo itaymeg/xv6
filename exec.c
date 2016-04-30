@@ -18,6 +18,10 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
 
+  //createSwapFile(proc);
+  //pages_info newPages;
+  //proc->pages = newPages;
+
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();

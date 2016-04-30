@@ -215,6 +215,34 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
   return 0;
 }
 
+uint moveToDisk(pde_t *pgdir){
+	int i;
+	int j;
+	pte_t *pageToMove_pte;
+	uint pageToMove;
+	for(i = 0; i < MAX_PSYC_PAGES; i++){
+		if (proc->pages.memory.pageTables[i].used == PAGE_USED) {
+			pageToMove = proc->pages.memory.pageTables[i].virtualAddress;
+			pageToMove_pte = walkpgdir(pgdir,(char *) pageToMove,0);
+			proc->pages.memory.pageTables[i].used = PAGE_UNUSED;
+			break;
+		}
+	}
+	for(j = 0; j  < MAX_PSYC_PAGES; j++){
+		if (proc->pages.disk.pageTables[j].used == PAGE_UNUSED){
+			proc->pages.disk.pageTables[j].used = PAGE_USED;
+			break;
+		}
+	}
+	writeToSwapFile(proc,(char *) pageToMove, j*PGSIZE,PGSIZE);
+	*pageToMove_pte = *pageToMove_pte & ~PTE_P;		//turn off presence flag
+	*pageToMove_pte = *pageToMove_pte | PTE_PG;	//turn on swapped out flag
+	proc->pages.memory.count--;
+	proc->pages.disk.count++;
+	proc->pages.disk.pageTables[i].virtualAddress = pageToMove;
+	return i; //index for empty page slot
+}
+
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int
@@ -222,6 +250,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
+  uint freePageIdx;
 
   if(newsz >= KERNBASE)
     return 0;
@@ -230,6 +259,10 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
+	  int isShellOrInit = strncmp("sh",proc->name,2) || strncmp("init",proc->name,3);
+	  if(proc->pages.memory.count == 15 && !isShellOrInit){
+		  freePageIdx = moveToDisk(pgdir);
+	  }
     mem = kalloc();
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
@@ -238,6 +271,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     }
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
+    proc->pages.memory.pageTables[freePageIdx].used = PAGE_USED;
+    proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
   }
   return newsz;
 }
@@ -266,6 +301,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         panic("kfree");
       char *v = p2v(pa);
       kfree(v);
+      proc->pages.memory.count--;
       *pte = 0;
     }
   }

@@ -56,7 +56,7 @@ void
 fileclose(struct file *f)
 {
   struct file ff;
-
+  cprintf("dsadasdsadsdsadsadsdd\n");
   acquire(&ftable.lock);
   if(f->ref < 1)
     panic("fileclose");
@@ -108,6 +108,7 @@ fileread(struct file *f, char *addr, int n)
     iunlock(f->ip);
     return r;
   }
+  cprintf("type is: %d\n", f->type);
   panic("fileread");
 }
 
@@ -132,6 +133,7 @@ filewrite(struct file *f, char *addr, int n)
     int max = ((LOGSIZE-1-1-2) / 2) * 512;
     int i = 0;
     while(i < n){
+    	cprintf("i'm in a loop!\n");
       int n1 = n - i;
       if(n1 > max)
         n1 = max;

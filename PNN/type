@@ -1,0 +1,1322 @@
+BUGS:	can't always runcmd in child -- breaks cd.
+BUGS:	maybe should hard-code PATH=/ ?
+LICENSE:Copyright (c) 2006-2009 Frans Kaashoek, Robert Morris, Russ Cox,
+Makefile:# Cross-compiling (e.g., on Mac OS X)
+Makefile:# TOOLPREFIX = i386-jos-elf
+Makefile:TOOLPREFIX := $(shell if i386-jos-elf-objdump -i 2>&1 | grep '^elf32-i386$$' >/dev/null 2>&1; \
+Makefile:	then echo 'i386-jos-elf-'; \
+Makefile:	elif objdump -i 2>&1 | grep 'elf32-i386' >/dev/null 2>&1; \
+Makefile:	echo "*** Error: Couldn't find an i386-*-elf version of GCC/binutils." 1>&2; \
+Makefile:	echo "*** Is the directory with i386-jos-elf-gcc in your PATH?" 1>&2; \
+Makefile:	echo "*** If your i386-*-elf toolchain is installed with a command" 1>&2; \
+Makefile:	echo "*** prefix other than 'i386-jos-elf-', set your TOOLPREFIX" 1>&2; \
+Makefile:# QEMU = qemu-system-i386
+Makefile:	elif which qemu-system-i386 > /dev/null; \
+Makefile:	then echo qemu-system-i386; exit; \
+Makefile:	qemu=/Applications/Q.app/Contents/MacOS/i386-softmmu.app/Contents/MacOS/i386-softmmu; \
+Makefile:	if test -x $$qemu; then echo $$qemu; exit; fi; fi; \
+Makefile:CC = $(TOOLPREFIX)gcc -DSELECTION=$(SELECTION)
+Makefile:#CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
+Makefile:CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -fvar-tracking -fvar-tracking-assignments -O0 -g -Wall -MD -gdwarf-2 -m32 -Werror -fno-omit-frame-pointer
+Makefile:CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+Makefile:ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
+Makefile:LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null)
+Makefile:	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c bootmain.c
+Makefile:	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootasm.S
+Makefile:	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o bootblock.o bootasm.o bootmain.o
+Makefile:	$(OBJDUMP) -S bootblock.o > bootblock.asm
+Makefile:	$(OBJCOPY) -S -O binary -j .text bootblock.o bootblock
+Makefile:	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c entryother.S
+Makefile:	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o bootblockother.o entryother.o
+Makefile:	$(OBJCOPY) -S -O binary -j .text bootblockother.o entryother
+Makefile:	$(OBJDUMP) -S bootblockother.o > entryother.asm
+Makefile:	$(CC) $(CFLAGS) -nostdinc -I. -c initcode.S
+Makefile:	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o initcode.out initcode.o
+Makefile:	$(OBJCOPY) -S -O binary initcode.out initcode
+Makefile:	$(OBJDUMP) -S initcode.o > initcode.asm
+Makefile:	$(LD) $(LDFLAGS) -T kernel.ld -o kernel entry.o $(OBJS) -b binary initcode entryother
+Makefile:	$(OBJDUMP) -S kernel > kernel.asm
+Makefile:	$(OBJDUMP) -t kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernel.sym
+Makefile:MEMFSOBJS = $(filter-out ide.o,$(OBJS)) memide.o
+Makefile:	$(LD) $(LDFLAGS) -T kernel.ld -o kernelmemfs entry.o  $(MEMFSOBJS) -b binary initcode entryother fs.img
+Makefile:	$(OBJDUMP) -S kernelmemfs > kernelmemfs.asm
+Makefile:	$(OBJDUMP) -t kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > kernelmemfs.sym
+Makefile:	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+Makefile:	$(OBJDUMP) -S $@ > $*.asm
+Makefile:	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
+Makefile:	# forktest has less library code linked in - needs to be small
+Makefile:	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o _forktest forktest.o ulib.o usys.o
+Makefile:	$(OBJDUMP) -S _forktest > forktest.asm
+Makefile:	gcc -DSELECTION=$(SELECTION) -Werror -Wall -o mkfs mkfs.c
+Makefile:# http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
+Makefile:-include *.d
+Makefile:	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
+Makefile:FILES = $(shell grep -v '^\#' runoff.list)
+Makefile:	ls -l xv6.pdf
+Makefile:	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
+Makefile:	bochs -q
+Makefile:GDBPORT = $(shell expr `id -u` % 5000 + 25000)
+Makefile:QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
+Makefile:	then echo "-gdb tcp::$(GDBPORT)"; \
+Makefile:	else echo "-s -p $(GDBPORT)"; fi)
+Makefile:QEMUOPTS = -hdb fs.img xv6.img -smp $(CPUS) -m 512 $(QEMUEXTRA)
+Makefile:	$(QEMU) -serial mon:stdio $(QEMUOPTS)
+Makefile:qemu-memfs: xv6memfs.img
+Makefile:	$(QEMU) xv6memfs.img -smp $(CPUS) -m 256
+Makefile:qemu-nox: fs.img xv6.img
+Makefile:	$(QEMU) -nographic $(QEMUOPTS)
+Makefile:qemu-gdb: fs.img xv6.img .gdbinit
+Makefile:	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
+Makefile:qemu-nox-gdb: fs.img xv6.img .gdbinit
+Makefile:	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
+Makefile:	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
+Makefile:	rm -rf dist
+Makefile:		grep -v PAGEBREAK $$i >dist/$$i; \
+Makefile:dist-test:
+Makefile:	rm -rf dist
+Makefile:	rm -rf dist-test
+Makefile:	mkdir dist-test
+Makefile:	cp dist/* dist-test
+Makefile:	cd dist-test; $(MAKE) print
+Makefile:	cd dist-test; $(MAKE) bochs || true
+Makefile:	cd dist-test; $(MAKE) qemu
+Makefile:	rm -rf /tmp/xv6
+Makefile:	mkdir -p /tmp/xv6
+Makefile:	(cd /tmp; tar cf - xv6) | gzip >xv6-rev9.tar.gz  # the next one will be 9 (6/27/15)
+Makefile:.PHONY: dist-test dist
+Notes:./configure --enable-smp --enable-disasm --enable-debugger --enable-all-optimizations --enable-4meg-pages --enable-global-pages --enable-pae --disable-reset-on-triple-fault
+Notes:./configure --enable-smp --enable-disasm --enable-debugger --enable-all-optimizations --enable-4meg-pages --enable-global-pages --enable-pae 
+Notes:sector-aligned. so you can't use ld -N. and the sections may also need
+Notes:to be non-zero length, only really matters for tiny "kernels".
+Notes:perhaps have fixed-size stack, put it in the data segment?
+Notes:test out-of-fd cases for creating pipe.
+Notes:  per-fd lock *just* protects count read-modify-write
+Notes:in general, the table locks protect both free-ness and
+Notes:  per-pipe lock
+Notes:what does inode->busy mean?
+Notes:  no-one is allowed to do anything to the inode
+Notes:inode->count counts in-memory pointers to the struct
+Notes:  prevents inode[] element from being re-used
+Notes:blocks and inodes have ad-hoc sleep-locks
+Notes:test: dup() shared fd->off
+Notes:sh: stop stdin on ctrl-d (for cat > y)
+README:xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
+README:but is implemented for a modern x86-based multiprocessor using ANSI C.
+README:to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
+README:provides pointers to on-line resources for v6.
+README:Silas Boyd-Wickizer, Peter Froehlich, Shivam Handa, Anders Kaseorg, Eddie
+README:Copyright 2006-2014 Frans Kaashoek, Robert Morris, and Russ Cox.
+README:On non-x86 or non-ELF machines (like OS X, even on x86), you will
+README:need to install a cross-compiler gcc suite capable of producing x86 ELF
+README:Then run "make TOOLPREFIX=i386-jos-elf-".
+TRICKS:---
+TRICKS:at that point, cp->tf is set to point to a trap frame
+TRICKS:---
+TRICKS:---
+TRICKS:	if(c->ncli++ == 0)
+TRICKS:		c->intena = eflags & FL_IF;
+TRICKS:Consider a bottom-level pushcli.  
+TRICKS:	c->intena = 1;
+TRICKS:---
+TRICKS:The x86's processor-ordering memory model 
+TRICKS:  - all reads in B see the effects of writes in A.
+TRICKS:  - all reads in A do *not* see the effects of writes in B.
+TRICKS:to memory before the write of lk->locked = 0 in 
+TRICKS:will observe CPU0's write of lk->locked = 0 only
+TRICKS:---
+TRICKS:The code in fork needs to read np->pid before
+TRICKS:setting np->state to RUNNABLE.  The following
+TRICKS:	  np->state = RUNNABLE;
+TRICKS:	  return np->pid; // oops
+TRICKS:After setting np->state to RUNNABLE, some other CPU
+TRICKS:"return np->pid". Even saving a copy of np->pid before
+TRICKS:setting np->state isn't safe, since the compiler is
+TRICKS:allowed to re-order statements.
+TRICKS:The real code saves a copy of np->pid, then acquires a lock
+TRICKS:around the write to np->state. The acquire() prevents the
+TRICKS:compiler from re-ordering.
+asm.h:// The 0xC0 means the limit is in 4096-byte units
+asm.h:// and (for executable segments) 32-bit mode.
+asm.h:#define STA_E     0x4       // Expand down (non-executable segments)
+asm.h:#define STA_W     0x2       // Writeable (non-executable segments)
+bio.c:    b->next = bcache.head.next;
+bio.c:    b->prev = &bcache.head;
+bio.c:    b->dev = -1;
+bio.c:    bcache.head.next->prev = b;
+bio.c:  for(b = bcache.head.next; b != &bcache.head; b = b->next){
+bio.c:    if(b->dev == dev && b->blockno == blockno){
+bio.c:      if(!(b->flags & B_BUSY)){
+bio.c:        b->flags |= B_BUSY;
+bio.c:  // Not cached; recycle some non-busy and clean buffer.
+bio.c:  for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
+bio.c:    if((b->flags & B_BUSY) == 0 && (b->flags & B_DIRTY) == 0){
+bio.c:      b->dev = dev;
+bio.c:      b->blockno = blockno;
+bio.c:      b->flags = B_BUSY;
+bio.c:  if(!(b->flags & B_VALID)) {
+bio.c:  if((b->flags & B_BUSY) == 0)
+bio.c:  b->flags |= B_DIRTY;
+bio.c:  if((b->flags & B_BUSY) == 0)
+bio.c:  b->next->prev = b->prev;
+bio.c:  b->prev->next = b->next;
+bio.c:  b->next = bcache.head.next;
+bio.c:  b->prev = &bcache.head;
+bio.c:  bcache.head.next->prev = b;
+bio.c:  b->flags &= ~B_BUSY;
+bootasm.S:# Start the first CPU: switch to 32-bit protected mode, jump into C.
+bootasm.S:.code16                       # Assemble for 16-bit mode
+bootasm.S:  movw    %ax,%ds             # -> Data Segment
+bootasm.S:  movw    %ax,%es             # -> Extra Segment
+bootasm.S:  movw    %ax,%ss             # -> Stack Segment
+bootasm.S:  movb    $0xd1,%al               # 0xd1 -> port 0x64
+bootasm.S:  movb    $0xdf,%al               # 0xdf -> port 0x60
+bootasm.S:  # Complete transition to 32-bit protected mode by using long jmp
+bootasm.S:.code32  # Tell assembler to generate 32-bit code now.
+bootasm.S:  # Set up the protected-mode data segment registers
+bootasm.S:  movw    %ax, %ds                # -> DS: Data Segment
+bootasm.S:  movw    %ax, %es                # -> ES: Extra Segment
+bootasm.S:  movw    %ax, %ss                # -> SS: Stack Segment
+bootasm.S:  movw    %ax, %fs                # -> FS
+bootasm.S:  movw    %ax, %gs                # -> GS
+bootasm.S:  movw    $0x8a00, %ax            # 0x8a00 -> port 0x8a00
+bootasm.S:  movw    $0x8ae0, %ax            # 0x8ae0 -> port 0x8a00
+bootasm.S:  .word   (gdtdesc - gdt - 1)             # sizeof(gdt) - 1
+bootmain.c:// bootasm.S has put the processor into protected 32-bit mode.
+bootmain.c:  if(elf->magic != ELF_MAGIC)
+bootmain.c:  ph = (struct proghdr*)((uchar*)elf + elf->phoff);
+bootmain.c:  eph = ph + elf->phnum;
+bootmain.c:    pa = (uchar*)ph->paddr;
+bootmain.c:    readseg(pa, ph->filesz, ph->off);
+bootmain.c:    if(ph->memsz > ph->filesz)
+bootmain.c:      stosb(pa + ph->filesz, 0, ph->memsz - ph->filesz);
+bootmain.c:  entry = (void(*)(void))(elf->entry);
+bootmain.c:  outb(0x1F7, 0x20);  // cmd 0x20 - read sectors
+bootmain.c:  pa -= offset % SECTSIZE;
+bootmain.c:  // We'd write more to memory than asked, but it doesn't matter --
+console.c:    x = -xx;
+console.c:    buf[i++] = '-';
+console.c:  while(--i >= 0)
+console.c:  cprintf("cpu%d: panic: ", cpu->id);
+console.c:    pos += 80 - pos%80;
+console.c:    if(pos > 0) --pos;
+console.c:    pos -= 80;
+console.c:    memset(crt+pos, 0, sizeof(crt[0])*(24*80 - pos));
+console.c:#define C(x)  ((x)-'@')  // Control-x
+console.c:            input.buf[(input.e-1) % INPUT_BUF] != '\n'){
+console.c:        input.e--;
+console.c:        input.e--;
+console.c:      if(c != 0 && input.e-input.r < INPUT_BUF){
+console.c:      if(proc->killed){
+console.c:        return -1;
+console.c:        // caller gets a 0-byte result.
+console.c:        input.r--;
+console.c:    --n;
+console.c:  return target - n;
+cuth:	if(system("make CC='gcc -Werror' $obj >/dev/null 2>\&1") != 0){
+cuth:	for($j=@lines-1; $j>=0; $j--){
+cuth:			$lines[$j] = "/* CUT-H */\n";
+cuth:			if(system("make CC='gcc -Werror' $obj >/dev/null 2>\&1") != 0){
+cuth:	writefile($file, grep {!/CUT-H/} @lines);
+defs.h:// number of elements in fixed-size array
+dot-bochsrc:# version is only available when you use "--with-wx" on the configure 
+dot-bochsrc:# different platforms.  If you run configure with multiple --with-* options, 
+dot-bochsrc:#   macintosh      use MacOS pre-10
+dot-bochsrc:# distribution called BIOS-bochs-latest. The ROM BIOS is usually loaded
+dot-bochsrc:romimage: file=$BXSHARE/BIOS-bochs-latest
+dot-bochsrc:# This defines cpu-related parameters inside Bochs:
+dot-bochsrc:#  --enable-show-ips option enabled, to find your workstation's capability.
+dot-bochsrc:#  IPS is used to calibrate many time-dependent events within the bochs 
+dot-bochsrc:#  650Mhz Athlon K-7 with Linux 2.4.4/egcs-2.91.66  2 to  2.5 Mips
+dot-bochsrc:#  400Mhz Pentium II with Linux 2.0.36/egcs-1.0.3   1 to  1.8 Mips
+dot-bochsrc:# OPTROMIMAGE[1-4]:
+dot-bochsrc:# read-only area, typically between C8000 and EFFFF. These optional
+dot-bochsrc:# F0000-FFFFF) and the videobios (located at C0000-C7FFF).
+dot-bochsrc:#vgaromimage: file=bios/VGABIOS-elpin-2.40
+dot-bochsrc:vgaromimage: file=$BXSHARE/VGABIOS-lgpl-latest
+dot-bochsrc:#vgaromimage: file=bios/VGABIOS-lgpl-latest-cirrus
+dot-bochsrc:# ata[0-3]: enabled=[0|1], ioaddr1=addr, ioaddr2=addr, irq=number
+dot-bochsrc:# ATA[0-3]-MASTER, ATA[0-3]-SLAVE
+dot-bochsrc:# bximage geometry autodetection can be used (cylinders=0 -> cylinders are
+dot-bochsrc:#   ata0-master: type=disk, mode=flat, path=10M.sample, cylinders=306, heads=4, spt=17
+dot-bochsrc:#   ata0-slave:  type=disk, mode=flat, path=20M.sample, cylinders=615, heads=4, spt=17
+dot-bochsrc:#   ata1-master: type=disk, mode=flat, path=30M.sample, cylinders=615, heads=6, spt=17
+dot-bochsrc:#   ata1-slave:  type=disk, mode=flat, path=46M.sample, cylinders=940, heads=6, spt=17
+dot-bochsrc:#   ata2-master: type=disk, mode=flat, path=62M.sample, cylinders=940, heads=8, spt=17
+dot-bochsrc:#   ata2-slave:  type=disk, mode=flat, path=112M.sample, cylinders=900, heads=15, spt=17
+dot-bochsrc:#   ata3-master: type=disk, mode=flat, path=483M.sample, cylinders=1024, heads=15, spt=63
+dot-bochsrc:#   ata3-slave:  type=cdrom, path=iso.sample, status=inserted
+dot-bochsrc:ata0-master: type=disk, mode=flat, path="xv6.img", cylinders=100, heads=10, spt=10
+dot-bochsrc:ata0-slave: type=disk, mode=flat, path="fs.img", cylinders=1024, heads=1, spt=1
+dot-bochsrc:#ata0-slave: type=cdrom, path=D:, status=inserted
+dot-bochsrc:#ata0-slave: type=cdrom, path=/dev/cdrom, status=inserted
+dot-bochsrc:#ata0-slave: type=cdrom, path="drive", status=inserted
+dot-bochsrc:#ata0-slave: type=cdrom, path=/dev/rcd0d, status=inserted 
+dot-bochsrc:# '-' the output is written to the console. If you really don't want it,
+dot-bochsrc:#   logprefix: %t-%e-@%i-%d
+dot-bochsrc:# If you really don't want it, make it /dev/null or '-'. :^(
+dot-bochsrc:debugger_log: -
+dot-bochsrc:# specified as the 'dev' parameter), 'raw' (use the real serial port - under
+dot-bochsrc:# construction for win32), 'mouse' (standard serial mouse - requires
+dot-bochsrc:#      non-continuous sound.  750000 is usually a good value.  This needs a
+dot-bochsrc:# of emulated instructions-per-second your workstation can do, for this
+dot-bochsrc:# 'mode=mouse') and 'usb' (3-button mouse - one of the USB ports must be
+dot-bochsrc:# connected with the 'mouse' device - requires PCI and USB support).
+dot-bochsrc:#                   non-shared colormap.  This colormap will be used
+dot-bochsrc:#   vnet: ARP, ICMP-echo(ping), DHCP and read/write TFTP are simulated.
+dot-bochsrc:#   keyboard_mapping: enabled=1, map=gui/keymaps/x11-pc-de.map
+dot-bochsrc:# exception is french macs, that do have a "at"-like keyboard.
+dot-bochsrc:# 3 key names (listed below) separated with a '-' character. The old-style
+dot-bochsrc:# syntax (without the '-') still works for the key combinations supported
+dot-bochsrc:#   user_shortcut: keys=ctrl-alt-del
+dot-bochsrc:#user_shortcut: keys=ctrl-alt-del
+dot-bochsrc:# have a 3-button USB mouse.
+dot-bochsrc:#-------------------------
+dot-bochsrc:#-------------------------
+dot-bochsrc:# vgaromimage: :bios:VGABIOS-elpin-2.40
+dot-bochsrc:# romimage: file=:bios:BIOS-bochs-latest, address=0xf0000
+entry.S:  .long (-magic-flags)
+entry.S:  # the assembler produces a PC-relative instruction
+entryother.S:# Each non-boot CPU ("AP") is started up in response to a STARTUP
+entryother.S:# IPI from the boot CPU.  Section B.4.2 of the Multi-Processor
+entryother.S:# set to XY00:0000, where XY is an 8-bit value sent with the
+entryother.S:# STARTUP. Thus this code must start at a 4096-byte boundary.
+entryother.S:# a newly allocated per-core stack in start-4,the address of the
+entryother.S:# place to jump to (mpenter) in start-8, and the physical address
+entryother.S:# of entrypgdir in start-12.
+entryother.S:#   - it does not need to enable A20
+entryother.S:#   - it uses the address at start-4, start-8, and start-12
+entryother.S:  movl    (start-12), %eax
+entryother.S:  movl    (start-4), %esp
+entryother.S:  call	 *(start-8)
+entryother.S:  .word   (gdtdesc - gdt - 1)
+exec.c:  //cprintf(" -------------------- exec ------------------\n");
+exec.c:      proc->pagesInFile[i] = 0;
+exec.c:      proc->existInOffset[i] = 0;
+exec.c:      proc->countPagesInRAM = 0;
+exec.c:      proc->existInRAM[i] = 0;
+exec.c:    return -1;
+exec.c:  clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
+exec.c:    sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
+exec.c:  ustack[2] = sp - (argc+1)*4;  // argv pointer
+exec.c:  sp -= (3+argc+1) * 4;
+exec.c:  safestrcpy(proc->name, last, sizeof(proc->name));
+exec.c:  oldpgdir = proc->pgdir;
+exec.c:  proc->pgdir = pgdir;
+exec.c:  proc->sz = sz;
+exec.c:  proc->tf->eip = elf.entry;  // main
+exec.c:  proc->tf->esp = sp;
+exec.c:  return -1;
+file.c:    if(f->ref == 0){
+file.c:      f->ref = 1;
+file.c:  if(f->ref < 1)
+file.c:  f->ref++;
+file.c:  if(f->ref < 1)
+file.c:  if(--f->ref > 0){
+file.c:  f->ref = 0;
+file.c:  f->type = FD_NONE;
+file.c:  if(f->type == FD_INODE){
+file.c:    ilock(f->ip);
+file.c:    stati(f->ip, st);
+file.c:    iunlock(f->ip);
+file.c:  return -1;
+file.c:  if(f->readable == 0)
+file.c:    return -1;
+file.c:  if(f->type == FD_PIPE)
+file.c:    return piperead(f->pipe, addr, n);
+file.c:  if(f->type == FD_INODE){
+file.c:    ilock(f->ip);
+file.c:    if((r = readi(f->ip, addr, f->off, n)) > 0)
+file.c:      f->off += r;
+file.c:    iunlock(f->ip);
+file.c:  if(f->writable == 0)
+file.c:    return -1;
+file.c:  if(f->type == FD_PIPE)
+file.c:    return pipewrite(f->pipe, addr, n);
+file.c:  if(f->type == FD_INODE){
+file.c:    // i-node, indirect block, allocation blocks,
+file.c:    // and 2 blocks of slop for non-aligned writes.
+file.c:    int max = ((LOGSIZE-1-1-2) / 2) * 512;
+file.c:      int n1 = n - i;
+file.c:      ilock(f->ip);
+file.c:      if ((r = writei(f->ip, addr + i, f->off, n1)) > 0)
+file.c:        f->off += r;
+file.c:      iunlock(f->ip);
+file.c:    return i == n ? n : -1;
+file.h:// in-memory copy of an inode
+forktest.c:  for(; n > 0; n--){
+forktest.c:  if(wait() != -1){
+fs.c://   + Log: crash recovery for multi-step updates.
+fs.c:// This file contains the low-level file system manipulation 
+fs.c:// routines.  The (higher-level) system call implementations
+fs.c:  memmove(sb, bp->data, sizeof(*sb));
+fs.c:  memset(bp->data, 0, BSIZE);
+fs.c:      if((bp->data[bi/8] & m) == 0){  // Is block free?
+fs.c:        bp->data[bi/8] |= m;  // Mark block in use.
+fs.c:  if((bp->data[bi/8] & m) == 0)
+fs.c:  bp->data[bi/8] &= ~m;
+fs.c:// The kernel keeps a cache of in-use inodes in memory
+fs.c:// inodes include book-keeping information that is
+fs.c:// not stored on disk: ip->ref and ip->flags.
+fs.c:// An inode and its in-memory represtative go through a
+fs.c://   is non-zero. ialloc() allocates, iput() frees if
+fs.c://   is free if ip->ref is zero. Otherwise ip->ref tracks
+fs.c://   the number of in-memory pointers to the entry (open
+fs.c://   is set in ip->flags. ilock() reads the inode from
+fs.c://   I_VALID if ip->ref has fallen to zero.
+fs.c://   ... examine and modify ip->xxx ...
+fs.c:// get a long-term reference to an inode (as for an open file)
+fs.c:// pathname lookup. iget() increments ip->ref so that the inode
+fs.c:// multi-step atomic operations.
+fs.c:    dip = (struct dinode*)bp->data + inum%IPB;
+fs.c:    if(dip->type == 0){  // a free inode
+fs.c:      dip->type = type;
+fs.c:// Copy a modified in-memory inode to disk.
+fs.c:  bp = bread(ip->dev, IBLOCK(ip->inum, sb));
+fs.c:  dip = (struct dinode*)bp->data + ip->inum%IPB;
+fs.c:  dip->type = ip->type;
+fs.c:  dip->major = ip->major;
+fs.c:  dip->minor = ip->minor;
+fs.c:  dip->nlink = ip->nlink;
+fs.c:  dip->size = ip->size;
+fs.c:  memmove(dip->addrs, ip->addrs, sizeof(ip->addrs));
+fs.c:// and return the in-memory copy. Does not lock
+fs.c:    if(ip->ref > 0 && ip->dev == dev && ip->inum == inum){
+fs.c:      ip->ref++;
+fs.c:    if(empty == 0 && ip->ref == 0)    // Remember empty slot.
+fs.c:  ip->dev = dev;
+fs.c:  ip->inum = inum;
+fs.c:  ip->ref = 1;
+fs.c:  ip->flags = 0;
+fs.c:  ip->ref++;
+fs.c:  if(ip == 0 || ip->ref < 1)
+fs.c:  while(ip->flags & I_BUSY)
+fs.c:  ip->flags |= I_BUSY;
+fs.c:  if(!(ip->flags & I_VALID)){
+fs.c:    bp = bread(ip->dev, IBLOCK(ip->inum, sb));
+fs.c:    dip = (struct dinode*)bp->data + ip->inum%IPB;
+fs.c:    ip->type = dip->type;
+fs.c:    ip->major = dip->major;
+fs.c:    ip->minor = dip->minor;
+fs.c:    ip->nlink = dip->nlink;
+fs.c:    ip->size = dip->size;
+fs.c:    memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
+fs.c:    ip->flags |= I_VALID;
+fs.c:    if(ip->type == 0)
+fs.c:  if(ip == 0 || !(ip->flags & I_BUSY) || ip->ref < 1)
+fs.c:  ip->flags &= ~I_BUSY;
+fs.c:// Drop a reference to an in-memory inode.
+fs.c:  if(ip->ref == 1 && (ip->flags & I_VALID) && ip->nlink == 0){
+fs.c:    if(ip->flags & I_BUSY)
+fs.c:    ip->flags |= I_BUSY;
+fs.c:    ip->type = 0;
+fs.c:    ip->flags = 0;
+fs.c:  ip->ref--;
+fs.c:// are listed in ip->addrs[].  The next NINDIRECT blocks are 
+fs.c:// listed in block ip->addrs[NDIRECT].
+fs.c:    if((addr = ip->addrs[bn]) == 0)
+fs.c:      ip->addrs[bn] = addr = balloc(ip->dev);
+fs.c:  bn -= NDIRECT;
+fs.c:    if((addr = ip->addrs[NDIRECT]) == 0)
+fs.c:      ip->addrs[NDIRECT] = addr = balloc(ip->dev);
+fs.c:    bp = bread(ip->dev, addr);
+fs.c:    a = (uint*)bp->data;
+fs.c:      a[bn] = addr = balloc(ip->dev);
+fs.c:// and has no in-memory reference to it (is
+fs.c:    if(ip->addrs[i]){
+fs.c:      bfree(ip->dev, ip->addrs[i]);
+fs.c:      ip->addrs[i] = 0;
+fs.c:  if(ip->addrs[NDIRECT]){
+fs.c:    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+fs.c:    a = (uint*)bp->data;
+fs.c:        bfree(ip->dev, a[j]);
+fs.c:    bfree(ip->dev, ip->addrs[NDIRECT]);
+fs.c:    ip->addrs[NDIRECT] = 0;
+fs.c:  ip->size = 0;
+fs.c:  st->dev = ip->dev;
+fs.c:  st->ino = ip->inum;
+fs.c:  st->type = ip->type;
+fs.c:  st->nlink = ip->nlink;
+fs.c:  st->size = ip->size;
+fs.c:  if(ip->type == T_DEV){
+fs.c:    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].read)
+fs.c:      return -1;
+fs.c:    return devsw[ip->major].read(ip, dst, n);
+fs.c:  if(off > ip->size || off + n < off)
+fs.c:    return -1;
+fs.c:  if(off + n > ip->size)
+fs.c:    n = ip->size - off;
+fs.c:    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+fs.c:    m = min(n - tot, BSIZE - off%BSIZE);
+fs.c:    memmove(dst, bp->data + off%BSIZE, m);
+fs.c:  if(ip->type == T_DEV){
+fs.c:    if(ip->major < 0 || ip->major >= NDEV || !devsw[ip->major].write)
+fs.c:      return -1;
+fs.c:    return devsw[ip->major].write(ip, src, n);
+fs.c:  if(off > ip->size || off + n < off)
+fs.c:    return -1;
+fs.c:    return -1;
+fs.c:    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+fs.c:    m = min(n - tot, BSIZE - off%BSIZE);
+fs.c:    memmove(bp->data + off%BSIZE, src, m);
+fs.c:  if(n > 0 && off > ip->size){
+fs.c:    ip->size = off;
+fs.c:  if(dp->type != T_DIR)
+fs.c:  for(off = 0; off < dp->size; off += sizeof(de)){
+fs.c:      return iget(dp->dev, inum);
+fs.c:    return -1;
+fs.c:  for(off = 0; off < dp->size; off += sizeof(de)){
+fs.c:  len = path - s;
+fs.c:    ip = idup(proc->cwd);
+fs.c:    if(ip->type != T_DIR){
+fs.c:        *p++ = '-';
+fs.c:        i *= -1;
+fs.c:        *--p = digit[i%10];
+fs.c:	itoa(p->pid, path+ 6);
+fs.c:	if(0 == p->swapFile)
+fs.c:		return -1;
+fs.c:	fileclose(p->swapFile);
+fs.c:		return -1;
+fs.c:	if(ip->nlink < 1)
+fs.c:	if(ip->type == T_DIR && !isdirempty(ip)){
+fs.c:	if(ip->type == T_DIR){
+fs.c:		dp->nlink--;
+fs.c:	ip->nlink--;
+fs.c:		return -1;
+fs.c:	itoa(p->pid, path+ 6);
+fs.c:	p->swapFile = filealloc();
+fs.c:	if (p->swapFile == 0)
+fs.c:	p->swapFile->ip = in;
+fs.c:	p->swapFile->type = FD_INODE;
+fs.c:	p->swapFile->off = 0;
+fs.c:	p->swapFile->readable = O_WRONLY;
+fs.c:	p->swapFile->writable = O_RDWR;
+fs.c://return as sys_write (-1 when error)
+fs.c:	p->swapFile->off = placeOnFile;
+fs.c:	return filewrite(p->swapFile, buffer, size);
+fs.c://return as sys_read (-1 when error)
+fs.c:	p->swapFile->off = placeOnFile;
+fs.c:	return fileread(p->swapFile, buffer,  size);
+fs.h:// On-disk file system format. 
+fs.h:#define ROOTINO 1  // root i-number
+fs.h:// On-disk inode structure
+gdbutil:# -*- gdb-script -*-
+gdbutil:# Utility functions to pretty-print x86 segment/interrupt descriptors.
+gdbutil:# IA32 2007, Volume 3A, Table 3-2
+gdbutil:# IA32 2007, Volume 3A, Table 3-1
+gdbutil:# xv6-specific
+gdbutil:  # IA32 2007, Voume 3A, Figure 5-2
+gdbutil:  # IA32 20007, Volume 3A, Figure 3-8 and Figure 4-1
+gdbutil:        printf "16-bit (0)"
+gdbutil:        printf "32-bit (1)"
+grep.c:  while((n = read(fd, buf+m, sizeof(buf)-m-1)) > 0){
+grep.c:        write(1, p, q+1 - p);
+grep.c:      m -= p - buf;
+ide.c:// Simple PIO-based (non-DMA) IDE driver code.
+ide.c:// idequeue->qnext points to the next buf to be processed.
+ide.c:    return -1;
+ide.c:  ioapicenable(IRQ_IDE, ncpu - 1);
+ide.c:  if(b->blockno >= FSSIZE)
+ide.c:  int sector = b->blockno * sector_per_block;
+ide.c:  outb(0x1f6, 0xe0 | ((b->dev&1)<<4) | ((sector>>24)&0x0f));
+ide.c:  if(b->flags & B_DIRTY){
+ide.c:    outsl(0x1f0, b->data, BSIZE/4);
+ide.c:  idequeue = b->qnext;
+ide.c:  if(!(b->flags & B_DIRTY) && idewait(1) >= 0)
+ide.c:    insl(0x1f0, b->data, BSIZE/4);
+ide.c:  b->flags |= B_VALID;
+ide.c:  b->flags &= ~B_DIRTY;
+ide.c:  if(!(b->flags & B_BUSY))
+ide.c:  if((b->flags & (B_VALID|B_DIRTY)) == B_VALID)
+ide.c:  if(b->dev != 0 && !havedisk1)
+ide.c:  acquire(&idelock);  //DOC:acquire-lock
+ide.c:  b->qnext = 0;
+ide.c:  for(pp=&idequeue; *pp; pp=&(*pp)->qnext)  //DOC:insert-queue
+ide.c:  while((b->flags & (B_VALID|B_DIRTY)) != B_VALID){
+init.c:// init: The initial user-level program
+ioapic.c:#define INT_LEVEL      0x00008000  // Level-triggered (vs edge-)
+ioapic.c:  ioapic->reg = reg;
+ioapic.c:  return ioapic->data;
+ioapic.c:  ioapic->reg = reg;
+ioapic.c:  ioapic->data = data;
+ioapic.c:  // Mark all interrupts edge-triggered, active high, disabled,
+ioapic.c:  // Mark interrupt edge-triggered, active high,
+kalloc.c:// and pipe buffers. Allocates 4096-byte pages.
+kalloc.c:  r->next = kmem.freelist;
+kalloc.c:// Allocate one 4096-byte page of physical memory.
+kalloc.c:    kmem.freelist = r->next;
+kbd.c:    return -1;
+kbd.c:      c += 'A' - 'a';
+kbd.c:      c += 'a' - 'A';
+kbd.h:// C('A') == Control-A
+kbd.h:#define C(x) (x - '@')
+kbd.h:  '7',  '8',  '9',  '0',  '-',  '=',  '\b', '\t',
+kbd.h:  '8',  '9',  '-',  '4',  '5',  '6',  '+',  '1',
+kbd.h:  '8',  '9',  '-',  '4',  '5',  '6',  '+',  '1',
+kernel.ld:OUTPUT_FORMAT("elf32-i386", "elf32-i386", "elf32-i386")
+kernel.ld:	/* Conventionally, Unix linkers provide pseudo-symbols
+kernel.ld:	 * read-only rodata section between text and data. */
+kernel.ld:		*(.eh_frame .note.GNU-stack)
+lapic.c:// The local APIC manages internal (non-I/O) interrupts.
+lapic.c:  // Clear error status register (requires back-to-back writes).
+lapic.c:  // Send an Init Level De-Assert to synchronise arbitration ID's.
+lapic.c:  // Send INIT (level-triggered) interrupt to reset other CPU.
+lapic.c:  r->second = cmos_read(SECS);
+lapic.c:  r->minute = cmos_read(MINS);
+lapic.c:  r->hour   = cmos_read(HOURS);
+lapic.c:  r->day    = cmos_read(DAY);
+lapic.c:  r->month  = cmos_read(MONTH);
+lapic.c:  r->year   = cmos_read(YEAR);
+lapic.c:// qemu seems to use 24-hour GWT and the values are BCD encoded
+lapic.c:  r->year += 2000;
+log.c:// the count of in-progress FS system calls and returns.
+log.c:// The log is a physical re-do log containing disk blocks.
+log.c:// The on-disk log format:
+log.c:// Contents of the header block, used for both the on-disk header block
+log.c:    memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
+log.c:// Read the log header from disk into the in-memory log header
+log.c:  struct logheader *lh = (struct logheader *) (buf->data);
+log.c:  log.lh.n = lh->n;
+log.c:    log.lh.block[i] = lh->block[i];
+log.c:// Write in-memory log header to disk.
+log.c:  struct logheader *hb = (struct logheader *) (buf->data);
+log.c:  hb->n = log.lh.n;
+log.c:    hb->block[i] = log.lh.block[i];
+log.c:  log.outstanding -= 1;
+log.c:    memmove(to->data, from->data, BSIZE);
+log.c:    write_head();    // Write header to disk -- the real commit
+log.c:// Caller has modified b->data and is done with the buffer.
+log.c://   modify bp->data[]
+log.c:  if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1)
+log.c:    if (log.lh.block[i] == b->blockno)   // log absorbtion
+log.c:  log.lh.block[i] = b->blockno;
+log.c:  b->flags |= B_DIRTY; // prevent eviction
+ls.c:  for(p=path+strlen(path); p >= path && *p != '/'; p--)
+ls.c:  // Return blank-padded name.
+ls.c:  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+main.c:  cprintf("\ncpu%d: starting xv6\n\n", cpu->id);
+main.c:  cprintf("cpu%d: starting\n", cpu->id);
+main.c:  xchg(&cpu->started, 1); // tell startothers() we're up
+main.c:// Start the non-boot (AP) processors.
+main.c:    *(void**)(code-4) = stack + KSTACKSIZE;
+main.c:    *(void**)(code-8) = mpenter;
+main.c:    *(int**)(code-12) = (void *) v2p(entrypgdir);
+main.c:    lapicstartap(c->id, v2p(code));
+main.c:    while(c->started == 0)
+memide.c:  // no-op
+memide.c:  if(!(b->flags & B_BUSY))
+memide.c:  if((b->flags & (B_VALID|B_DIRTY)) == B_VALID)
+memide.c:  if(b->dev != 1)
+memide.c:  if(b->blockno >= disksize)
+memide.c:  p = memdisk + b->blockno*BSIZE;
+memide.c:  if(b->flags & B_DIRTY){
+memide.c:    b->flags &= ~B_DIRTY;
+memide.c:    memmove(p, b->data, BSIZE);
+memide.c:    memmove(b->data, p, BSIZE);
+memide.c:  b->flags |= B_VALID;
+memlayout.h:static inline uint v2p(void *a) { return ((uint) (a))  - KERNBASE; }
+memlayout.h:#define V2P(a) (((uint) (a)) - KERNBASE)
+memlayout.h:#define V2P_WO(x) ((x) - KERNBASE)    // same as V2P, but without casts
+mkfs.c:  nblocks = FSSIZE - nmeta;
+mkfs.c:      if(indirect[fbn - NDIRECT] == 0){
+mkfs.c:        indirect[fbn - NDIRECT] = xint(freeblock++);
+mkfs.c:      x = xint(indirect[fbn-NDIRECT]);
+mkfs.c:    n1 = min(n, (fbn + 1) * BSIZE - off);
+mkfs.c:    bcopy(p, buf + off - (fbn * BSIZE), n1);
+mkfs.c:    n -= n1;
+mmu.h:#define SEG_KCPU  3  // kernel per-cpu data
+mmu.h:  uint db : 1;         // 0 = 16-bit segment, 1 = 32-bit segment
+mmu.h:#define STA_E       0x4     // Expand down (non-executable segments)
+mmu.h:#define STA_W       0x2     // Writeable (non-executable segments)
+mmu.h:#define STS_T16A    0x1     // Available 16-bit TSS
+mmu.h:#define STS_T16B    0x3     // Busy 16-bit TSS
+mmu.h:#define STS_CG16    0x4     // 16-bit Call Gate
+mmu.h:#define STS_IG16    0x6     // 16-bit Interrupt Gate
+mmu.h:#define STS_TG16    0x7     // 16-bit Trap Gate
+mmu.h:#define STS_T32A    0x9     // Available 32-bit TSS
+mmu.h:#define STS_T32B    0xB     // Busy 32-bit TSS
+mmu.h:#define STS_CG32    0xC     // 32-bit Call Gate
+mmu.h:#define STS_IG32    0xE     // 32-bit Interrupt Gate
+mmu.h:#define STS_TG32    0xF     // 32-bit Trap Gate
+mmu.h:// A virtual address 'la' has a three-part structure as follows:
+mmu.h:// +--------10------+-------10-------+---------12----------+
+mmu.h:// +----------------+----------------+---------------------+
+mmu.h://  \--- PDX(va) --/ \--- PTX(va) --/ 
+mmu.h:#define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
+mmu.h:#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
+mmu.h:#define PTE_PWT         0x008   // Write-Through
+mmu.h:#define PTE_PCD         0x010   // Cache-Disable
+mmu.h:// - istrap: 1 for a trap (= exception) gate, 0 for an interrupt gate.
+mmu.h:// - sel: Code segment selector for interrupt/trap handler
+mmu.h:// - off: Offset in code segment for interrupt/trap handler
+mmu.h:// - dpl: Descriptor Privilege Level -
+mp.c:  return bcpu-cpus;
+mp.c:    if((mp = mpsearch1(p-1024, 1024)))
+mp.c:  if((mp = mpsearch()) == 0 || mp->physaddr == 0)
+mp.c:  conf = (struct mpconf*) p2v((uint) mp->physaddr);
+mp.c:  if(conf->version != 1 && conf->version != 4)
+mp.c:  if(sum((uchar*)conf, conf->length) != 0)
+mp.c:  lapic = (uint*)conf->lapicaddr;
+mp.c:  for(p=(uchar*)(conf+1), e=(uchar*)conf+conf->length; p<e; ){
+mp.c:      if(ncpu != proc->apicid){
+mp.c:        cprintf("mpinit: ncpu=%d apicid=%d\n", ncpu, proc->apicid);
+mp.c:      if(proc->flags & MPBOOT)
+mp.c:      ioapicid = ioapic->apicno;
+mp.c:  if(mp->imcrp){
+param.h:#define KSTACKSIZE 4096  // size of per-process kernel stack
+param.h:#define NINODE       50  // maximum number of active i-nodes
+param.h:#define LOGSIZE      (MAXOPBLOCKS*3)  // max data blocks in on-disk log
+picirq.c:#define IO_PIC1         0x20    // Master (IRQs 0-7)
+picirq.c:#define IO_PIC2         0xA0    // Slave (IRQs 8-15)
+picirq.c:  // Set up master (8259A-1)
+picirq.c:  //        (slave PIC) 3-bit # of slave's connection to master
+picirq.c:  //    p:  0 = MCS-80/85 mode, 1 = intel x86 mode
+picirq.c:  // Set up slave (8259A-2)
+pipe.c:  p->readopen = 1;
+pipe.c:  p->writeopen = 1;
+pipe.c:  p->nwrite = 0;
+pipe.c:  p->nread = 0;
+pipe.c:  initlock(&p->lock, "pipe");
+pipe.c:  (*f0)->type = FD_PIPE;
+pipe.c:  (*f0)->readable = 1;
+pipe.c:  (*f0)->writable = 0;
+pipe.c:  (*f0)->pipe = p;
+pipe.c:  (*f1)->type = FD_PIPE;
+pipe.c:  (*f1)->readable = 0;
+pipe.c:  (*f1)->writable = 1;
+pipe.c:  (*f1)->pipe = p;
+pipe.c:  return -1;
+pipe.c:  acquire(&p->lock);
+pipe.c:    p->writeopen = 0;
+pipe.c:    wakeup(&p->nread);
+pipe.c:    p->readopen = 0;
+pipe.c:    wakeup(&p->nwrite);
+pipe.c:  if(p->readopen == 0 && p->writeopen == 0){
+pipe.c:    release(&p->lock);
+pipe.c:    release(&p->lock);
+pipe.c:  acquire(&p->lock);
+pipe.c:    while(p->nwrite == p->nread + PIPESIZE){  //DOC: pipewrite-full
+pipe.c:      if(p->readopen == 0 || proc->killed){
+pipe.c:        release(&p->lock);
+pipe.c:        return -1;
+pipe.c:      wakeup(&p->nread);
+pipe.c:      sleep(&p->nwrite, &p->lock);  //DOC: pipewrite-sleep
+pipe.c:    p->data[p->nwrite++ % PIPESIZE] = addr[i];
+pipe.c:  wakeup(&p->nread);  //DOC: pipewrite-wakeup1
+pipe.c:  release(&p->lock);
+pipe.c:  acquire(&p->lock);
+pipe.c:  while(p->nread == p->nwrite && p->writeopen){  //DOC: pipe-empty
+pipe.c:    if(proc->killed){
+pipe.c:      release(&p->lock);
+pipe.c:      return -1;
+pipe.c:    sleep(&p->nread, &p->lock); //DOC: piperead-sleep
+pipe.c:  for(i = 0; i < n; i++){  //DOC: piperead-copy
+pipe.c:    if(p->nread == p->nwrite)
+pipe.c:    addr[i] = p->data[p->nread++ % PIPESIZE];
+pipe.c:  wakeup(&p->nwrite);  //DOC: piperead-wakeup
+pipe.c:  release(&p->lock);
+pr.pl:if($ARGV[0] eq "-h"){
+pr.pl:	if($lines[$i] =~ /^([0-9][0-9])[0-9][0-9] /){
+printf.c:    x = -xx;
+printf.c:    buf[i++] = '-';
+printf.c:  while(--i >= 0)
+printpcs:for p in i386-jos-elf-addr2line addr2line; do
+printpcs:       $p -h 2>&1 | grep -q '\belf32-i386\b'; then
+printpcs:# Enable as much pretty-printing as this addr2line can do
+printpcs:$p $($p -h | grep ' -[aipsf] ' | awk '{print $1}') -e kernel "$@"
+proc.c:    if(p->state == UNUSED)
+proc.c:  p->state = EMBRYO;
+proc.c:  p->pid = nextpid++;
+proc.c:  if((p->kstack = kalloc()) == 0){
+proc.c:    p->state = UNUSED;
+proc.c:  sp = p->kstack + KSTACKSIZE;
+proc.c:  sp -= sizeof *p->tf;
+proc.c:  p->tf = (struct trapframe*)sp;
+proc.c:  sp -= 4;
+proc.c:  sp -= sizeof *p->context;
+proc.c:  p->context = (struct context*)sp;
+proc.c:  memset(p->context, 0, sizeof *p->context);
+proc.c:  p->context->eip = (uint)forkret;
+proc.c:  p->countPagesInRAM = 0;
+proc.c:    p->existInOffset[i]=0;
+proc.c:   p->existInRAM[i]=0;
+proc.c:  if((p->pgdir = setupkvm()) == 0)
+proc.c:  inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
+proc.c:  p->sz = PGSIZE;
+proc.c:  memset(p->tf, 0, sizeof(*p->tf));
+proc.c:  p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
+proc.c:  p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
+proc.c:  p->tf->es = p->tf->ds;
+proc.c:  p->tf->ss = p->tf->ds;
+proc.c:  p->tf->eflags = FL_IF;
+proc.c:  p->tf->esp = PGSIZE;
+proc.c:  p->tf->eip = 0;  // beginning of initcode.S
+proc.c:  safestrcpy(p->name, "initcode", sizeof(p->name));
+proc.c:  p->cwd = namei("/");
+proc.c:  p->state = RUNNABLE;
+proc.c:// Return 0 on success, -1 on failure.
+proc.c:  sz = proc->sz;
+proc.c:    if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+proc.c:      return -1;
+proc.c:    if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
+proc.c:      return -1;
+proc.c:  proc->sz = sz;
+proc.c:    return -1;
+proc.c:  if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+proc.c:    kfree(np->kstack);
+proc.c:    np->kstack = 0;
+proc.c:    np->state = UNUSED;
+proc.c:    return -1;
+proc.c:  np->sz = proc->sz;
+proc.c:  np->parent = proc;
+proc.c:  *np->tf = *proc->tf;
+proc.c:  if(proc!=initproc && proc!=0 && !(strncmp("sh",proc->name,3) == 0) && proc->swapFile != 0){
+proc.c:    np->swapFile->ip = proc->swapFile->ip;
+proc.c:    np->swapFile->type = proc->swapFile->type;
+proc.c:    np->swapFile->off = proc->swapFile->off;
+proc.c:    np->swapFile->readable = proc->swapFile->readable;
+proc.c:    np->swapFile->writable =proc->swapFile->writable;
+proc.c:      np->pagesInFile[i] = proc->pagesInFile[i];
+proc.c:      np->existInOffset[i] = proc->existInOffset[i];
+proc.c:      np->countPagesInRAM = proc->countPagesInRAM;
+proc.c:      np->pagesInRAM[i].va =  proc->pagesInRAM[i].va; 
+proc.c:      np->pagesInRAM[i].aging =  proc->pagesInRAM[i].aging; 
+proc.c:      np->pagesInRAM[i].ctime =  proc->pagesInRAM[i].ctime; 
+proc.c:      np->existInRAM[i] = proc->existInRAM[i];
+proc.c:  np->tf->eax = 0;
+proc.c:    if(proc->ofile[i])
+proc.c:      np->ofile[i] = filedup(proc->ofile[i]);
+proc.c:  np->cwd = idup(proc->cwd);
+proc.c:  safestrcpy(np->name, proc->name, sizeof(proc->name));
+proc.c:  pid = np->pid;
+proc.c:  // lock to force the compiler to emit the np->state write last.
+proc.c:  np->state = RUNNABLE;
+proc.c:  //cprintf(" -------------------- fork --------------------\n");
+proc.c:    if(proc->ofile[fd]){
+proc.c:      fileclose(proc->ofile[fd]);
+proc.c:      proc->ofile[fd] = 0;
+proc.c:  iput(proc->cwd);
+proc.c:  proc->cwd = 0;
+proc.c:  wakeup1(proc->parent);
+proc.c:    if(p->parent == proc){
+proc.c:      p->parent = initproc;
+proc.c:      if(p->state == ZOMBIE)
+proc.c:  proc->state = ZOMBIE;
+proc.c:// Return -1 if this process has no children.
+proc.c:      if(p->parent != proc)
+proc.c:      if(p->state == ZOMBIE){
+proc.c:	ptemp.swapFile= p->swapFile;
+proc.c:        pid = p->pid;
+proc.c:        kfree(p->kstack);
+proc.c:        p->kstack = 0;
+proc.c:        freevm(p->pgdir);
+proc.c:        p->state = UNUSED;
+proc.c:        p->pid = 0;
+proc.c:        p->parent = 0;
+proc.c:        p->name[0] = 0;
+proc.c:        p->killed = 0;
+proc.c:	p->swapFile = 0;
+proc.c:    if(!havekids || proc->killed){
+proc.c:      return -1;
+proc.c:    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+proc.c:// Per-CPU process scheduler.
+proc.c://  - choose a process to run
+proc.c://  - swtch to start running that process
+proc.c://  - eventually that process transfers control
+proc.c:      if(p->state != RUNNABLE)
+proc.c:      p->state = RUNNING;
+proc.c:      swtch(&cpu->scheduler, proc->context);
+proc.c:      // It should have changed its p->state before coming back.
+proc.c:// and have changed proc->state.
+proc.c:  if(cpu->ncli != 1)
+proc.c:  if(proc->state == RUNNING)
+proc.c:  intena = cpu->intena;
+proc.c:  swtch(&proc->context, cpu->scheduler);
+proc.c:  cpu->intena = intena;
+proc.c:  proc->state = RUNNABLE;
+proc.c:  // change p->state and then call sched.
+proc.c:  proc->chan = chan;
+proc.c:  proc->state = SLEEPING;
+proc.c:  proc->chan = 0;
+proc.c:    if(p->state == SLEEPING && p->chan == chan)
+proc.c:      p->state = RUNNABLE;
+proc.c:    if(p->pid == pid){
+proc.c:      p->killed = 1;
+proc.c:      if(p->state == SLEEPING)
+proc.c:        p->state = RUNNABLE;
+proc.c:  return -1;
+proc.c:    if(p->state == UNUSED)
+proc.c:    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+proc.c:      state = states[p->state];
+proc.c:    cprintf("%d %s %s", p->pid, state, p->name);
+proc.c:    if(p->state == SLEEPING){
+proc.c:      getcallerpcs((uint*)p->context->ebp+2, pc);
+proc.h:// Segments in proc->gdt.
+proc.h:// Per-CPU state
+proc.h:  // Cpu-local storage variables; see below
+proc.h:  struct proc *proc;           // The currently-running process.
+proc.h:// Per-CPU variables, holding pointers to the
+proc.h:// This is similar to how thread-local variables are implemented
+proc.h:// Per-process state
+proc.h:  void *chan;                  // If non-zero, sleeping on chan
+proc.h:  int killed;                  // If non-zero, have been killed
+proc.h://   fixed-size stack
+runoff:mkdir -p fmt
+runoff:rm -f fmt/*
+runoff:files=`grep -v '^#' runoff.list | awk '{print $1}'`
+runoff:	./runoff1 -n $n $i >fmt/$i
+runoff:	nn=`tail -1 fmt/$i | sed 's/ .*//; s/^0*//'`
+runoff:pr -e8 -t runoff.list | awk '
+runoff:/^[a-z0-9]/ {
+runoff:}' | pr -3 -t >>fmt/toc
+runoff:perl -e '
+runoff:			print STDERR "assuming that sheet 1 is a $1 page.  double-check!\n";
+runoff:perl -e '
+runoff:		if (/^[0-9]+ typedef .* u(int|short|long|char);/) {
+runoff:		if (/^[0-9]+ extern/) {
+runoff:		if (/^[0-9]+ struct [a-zA-Z0-9_]+;/) {
+runoff:		if (/^([0-9]+) #define +([A-za-z0-9_]+) +?\(.*/) {
+runoff:		elsif (/^([0-9]+) #define +([A-Za-z0-9_]+) +([^ ]+)/) {
+runoff:		elsif (/^([0-9]+) #define +([A-Za-z0-9_]+)/) {
+runoff:		if(/^^([0-9]+) \.globl ([a-zA-Z0-9_]+)/){
+runoff:		if(/^^([0-9]+) ([a-zA-Z0-9_]+):$/ && $isglobl{$2}){
+runoff:		if (/^([0-9]+) (((static|struct|extern|union|enum) +)*([A-Za-z0-9_]+))( .*)? +([A-Za-z_][A-Za-z0-9_]*)(,|;|=| =)/) {
+runoff:		elsif(/^([0-9]+) (enum|struct|union) +([A-Za-z0-9_]+) +{/){ 
+runoff:perl -n -e 'print if s/^([0-9]+ [a-zA-Z0-9_]+)\(.*$/\1/;' alltext |
+runoff:	egrep -v ' (STUB|usage|main|if|for)$' >>defs
+runoff:#perl -n -e 'print if s/^([0-9]+) STUB\(([a-zA-Z0-9_]+)\)$/\1 \2/;' alltext \
+runoff:for i in `awk '{print $2}' defs | sort -f | uniq`
+runoff:	defs=`egrep '^[0-9]+ '$i'( |$)' defs | awk '{print $1}'`
+runoff:	uses=`egrep -h '([^a-zA-Z_0-9])'$i'($|[^a-zA-Z_0-9])' alltext | awk '{print $1}'`
+runoff:		echo $uses |fmt -29 | sed 's/^/    /'
+runoff:	../pr.pl -h "table of contents" toc
+runoff:	# pr -t -2 t.defs | ../pr.pl -h "definitions" | pad
+runoff:	pr -t -l50 -2 refs | ../pr.pl -h "cross-references" | pad
+runoff:	# pr.pl -h "definitions" -2 t.defs | pad
+runoff:	# pr.pl -h "cross-references" -2 refs | pad 
+runoff:		../pr.pl -h "xv6/$i" $i
+runoff:) | mpage -m50t50b -o -bLetter -T -t -2 -FCourier -L60 >all.ps
+runoff:nicefont=LucidaSans-Typewriter83
+runoff:if [ ! -f ../$nicefont ]
+runoff:	if git cat-file blob font:$nicefont > ../$nicefont~; then
+runoff:if [ -f ../$nicefont ]
+runoff.list:# low-level hardware
+runoff.list:# user-level
+runoff.spec:# "left" and "right" specify which page of a two-page spread a file
+runoff.spec:# goal is to have two action-packed 2-page spreads,
+runoff.spec:# with fs.c starting on 2nd column of a left page, we get these 2-page spreads:
+runoff1:if($ARGV[0] eq "-v") {
+runoff1:if($ARGV[0] eq "-n") {
+runoff1:$n = int(($n+49)/50)*50 - 1;
+runoff1:			if($lines[$j] =~ /PAGEBREAK:\s*([0-9]+)/){
+runoff1:		if($breakbefore - $i < 50 - $breaksize && $lastblank > $breakbefore && $lastblank >= $i+50 - 5){
+runoff1:		if($breakbefore - $i < 50 - $breaksize && $breakbefore != @lines){
+sh.c:  switch(cmd->type){
+sh.c:    if(ecmd->argv[0] == 0)
+sh.c:    exec(ecmd->argv[0], ecmd->argv);
+sh.c:    printf(2, "exec %s failed\n", ecmd->argv[0]);
+sh.c:    close(rcmd->fd);
+sh.c:    if(open(rcmd->file, rcmd->mode) < 0){
+sh.c:      printf(2, "open %s failed\n", rcmd->file);
+sh.c:    runcmd(rcmd->cmd);
+sh.c:      runcmd(lcmd->left);
+sh.c:    runcmd(lcmd->right);
+sh.c:      runcmd(pcmd->left);
+sh.c:      runcmd(pcmd->right);
+sh.c:      runcmd(bcmd->cmd);
+sh.c:    return -1;
+sh.c:      buf[strlen(buf)-1] = 0;  // chop \n
+sh.c:  if(pid == -1)
+sh.c:  cmd->type = EXEC;
+sh.c:  cmd->type = REDIR;
+sh.c:  cmd->cmd = subcmd;
+sh.c:  cmd->file = file;
+sh.c:  cmd->efile = efile;
+sh.c:  cmd->mode = mode;
+sh.c:  cmd->fd = fd;
+sh.c:  cmd->type = PIPE;
+sh.c:  cmd->left = left;
+sh.c:  cmd->right = right;
+sh.c:  cmd->type = LIST;
+sh.c:  cmd->left = left;
+sh.c:  cmd->right = right;
+sh.c:  cmd->type = BACK;
+sh.c:  cmd->cmd = subcmd;
+sh.c:    panic("syntax - missing )");
+sh.c:    cmd->argv[argc] = q;
+sh.c:    cmd->eargv[argc] = eq;
+sh.c:  cmd->argv[argc] = 0;
+sh.c:  cmd->eargv[argc] = 0;
+sh.c:// NUL-terminate all the counted strings.
+sh.c:  switch(cmd->type){
+sh.c:    for(i=0; ecmd->argv[i]; i++)
+sh.c:      *ecmd->eargv[i] = 0;
+sh.c:    nulterminate(rcmd->cmd);
+sh.c:    *rcmd->efile = 0;
+sh.c:    nulterminate(pcmd->left);
+sh.c:    nulterminate(pcmd->right);
+sh.c:    nulterminate(lcmd->left);
+sh.c:    nulterminate(lcmd->right);
+sh.c:    nulterminate(bcmd->cmd);
+show1:runoff1 "$@" | pr.pl -h "xv6/$@" | mpage -m50t50b -o -bLetter -T -t -2 -FLucidaSans-Typewriter83 -L60 >x.ps; gv --swap x.ps
+sign.pl:$buf .= "\0" x (510-$n);
+sleep1.p:then a deadlock can happen, because the non-atomic
+sleep1.p:increment of value conflicts with the non-atomic 
+sleep1.p:	:: cond ->
+sleep1.p:	:: else ->
+sleep1.p:	:: w < N ->
+sleep1.p:	:: else ->
+sleep1.p:	:: i < ITER ->
+sleep1.p:		x = value; value = x - 1; x = 0;
+sleep1.p:	:: else ->
+sleep1.p:	:: i < ITER ->
+sleep1.p:	:: else ->
+spinlock.c:  lk->name = name;
+spinlock.c:  lk->locked = 0;
+spinlock.c:  lk->cpu = 0;
+spinlock.c:  while(xchg(&lk->locked, 1) != 0)
+spinlock.c:  lk->cpu = cpu;
+spinlock.c:  getcallerpcs(&lk, lk->pcs);
+spinlock.c:  lk->pcs[0] = 0;
+spinlock.c:  lk->cpu = 0;
+spinlock.c:  // Paper says that Intel 64 and IA-32 will not move a load
+spinlock.c:  // after a store. So lock->locked = 0 would work here.
+spinlock.c:  xchg(&lk->locked, 0);
+spinlock.c:  ebp = (uint*)v - 2;
+spinlock.c:  return lock->locked && lock->cpu == cpu;
+spinlock.c:  if(cpu->ncli++ == 0)
+spinlock.c:    cpu->intena = eflags & FL_IF;
+spinlock.c:    panic("popcli - interruptible");
+spinlock.c:  if(--cpu->ncli < 0)
+spinlock.c:  if(cpu->ncli == 0 && cpu->intena)
+spinp:if [ $# != 1 ] || [ ! -f "$1" ]; then
+spinp:rm -f $1.trail
+spinp:spin -a $1 || exit 1
+spinp:cc -DSAFETY -DREACH -DMEMLIM=500 -o pan pan.c
+spinp:pan -i
+spinp:if [ -f $1.trail ]; then
+spinp:	spin -t -p $1
+string.c:  while(n-- > 0){
+string.c:      return *s1 - *s2;
+string.c:    while(n-- > 0)
+string.c:      *--d = *--s;
+string.c:    while(n-- > 0)
+string.c:    n--, p++, q++;
+string.c:  return (uchar)*p - (uchar)*q;
+string.c:  while(n-- > 0 && (*s++ = *t++) != 0)
+string.c:  while(n-- > 0)
+string.c:// Like strncpy but guaranteed to NUL-terminate.
+string.c:  while(--n > 0 && (*s++ = *t++) != 0)
+swtch.S:  # Save old callee-save registers
+swtch.S:  # Load new callee-save registers
+symlink.patch:diff -r f8a4e40ab1d6 fs.c
+symlink.patch:--- a/fs.c	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/fs.c	Thu Aug 30 14:29:02 2007 -0400
+symlink.patch:@@ -577,12 +577,18 @@ skipelem(char *path, char *name)
+symlink.patch:-_namei(char *path, int parent, char *name)
+symlink.patch:     ip = idup(cp->cwd);
+symlink.patch:@@ -598,10 +604,24 @@ _namei(char *path, int parent, char *nam
+symlink.patch:-    iunlockput(ip);
+symlink.patch:+    if(next->type == T_SYMLINK){
+symlink.patch:+      if(next->size >= sizeof(buf) || readi(next, buf, 0, next->size) != next->size){
+symlink.patch:+      buf[next->size] = 0;
+symlink.patch:@@ -615,11 +635,11 @@ namei(char *path)
+symlink.patch:-  return _namei(path, 0, name);
+symlink.patch:-  return _namei(path, 1, name);
+symlink.patch:-}
+symlink.patch:diff -r f8a4e40ab1d6 fs.h
+symlink.patch:--- a/fs.h	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/fs.h	Thu Aug 30 13:05:43 2007 -0400
+symlink.patch:@@ -33,6 +33,7 @@ struct dinode {
+symlink.patch:diff -r f8a4e40ab1d6 syscall.c
+symlink.patch:--- a/syscall.c	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/syscall.c	Thu Aug 30 13:05:29 2007 -0400
+symlink.patch:@@ -96,6 +96,7 @@ extern int sys_unlink(void);
+symlink.patch:@@ -118,6 +119,7 @@ static int (*syscalls[])(void) = {
+symlink.patch:diff -r f8a4e40ab1d6 syscall.h
+symlink.patch:--- a/syscall.h	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/syscall.h	Thu Aug 30 13:02:48 2007 -0400
+symlink.patch:@@ -19,3 +19,4 @@
+symlink.patch:diff -r f8a4e40ab1d6 sysfile.c
+symlink.patch:--- a/sysfile.c	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/sysfile.c	Thu Aug 30 13:10:31 2007 -0400
+symlink.patch:@@ -257,6 +257,21 @@ create(char *path, int canexist, short t
+symlink.patch:+    return -1;
+symlink.patch:+    return -1;
+symlink.patch:@@ -393,3 +408,4 @@ sys_pipe(void)
+symlink.patch:diff -r f8a4e40ab1d6 user.h
+symlink.patch:--- a/user.h	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/user.h	Thu Aug 30 13:02:34 2007 -0400
+symlink.patch:@@ -21,6 +21,7 @@ int getpid();
+symlink.patch:diff -r f8a4e40ab1d6 usys.S
+symlink.patch:--- a/usys.S	Thu Aug 30 14:32:06 2007 -0400
+symlink.patch:+++ b/usys.S	Thu Aug 30 13:05:54 2007 -0400
+symlink.patch:@@ -28,3 +28,4 @@ STUB(getpid)
+syscall.c:  if(addr >= proc->sz || addr+4 > proc->sz)
+syscall.c:    return -1;
+syscall.c:// Fetch the nul-terminated string at addr from the current process.
+syscall.c:// Doesn't actually copy the string - just sets *pp to point at it.
+syscall.c:  if(addr >= proc->sz)
+syscall.c:    return -1;
+syscall.c:  ep = (char*)proc->sz;
+syscall.c:      return s - *pp;
+syscall.c:  return -1;
+syscall.c:// Fetch the nth 32-bit system call argument.
+syscall.c:  return fetchint(proc->tf->esp + 4 + 4*n, ip);
+syscall.c:// Fetch the nth word-sized system call argument as a pointer
+syscall.c:    return -1;
+syscall.c:  if((uint)i >= proc->sz || (uint)i+size > proc->sz)
+syscall.c:    return -1;
+syscall.c:// Fetch the nth word-sized system call argument as a string pointer.
+syscall.c:// Check that the pointer is valid and the string is nul-terminated.
+syscall.c:    return -1;
+syscall.c:  num = proc->tf->eax;
+syscall.c:    proc->tf->eax = syscalls[num]();
+syscall.c:            proc->pid, proc->name, num);
+syscall.c:    proc->tf->eax = -1;
+sysfile.c:// File-system system calls.
+sysfile.c:// Fetch the nth word-sized system call argument as a file descriptor
+sysfile.c:    return -1;
+sysfile.c:  if(fd < 0 || fd >= NOFILE || (f=proc->ofile[fd]) == 0)
+sysfile.c:    return -1;
+sysfile.c:    if(proc->ofile[fd] == 0){
+sysfile.c:      proc->ofile[fd] = f;
+sysfile.c:  return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:  proc->ofile[fd] = 0;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:  if(ip->type == T_DIR){
+sysfile.c:    return -1;
+sysfile.c:  ip->nlink++;
+sysfile.c:  if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
+sysfile.c:  ip->nlink--;
+sysfile.c:  return -1;
+sysfile.c:  for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:  if(ip->nlink < 1)
+sysfile.c:  if(ip->type == T_DIR && !isdirempty(ip)){
+sysfile.c:  if(ip->type == T_DIR){
+sysfile.c:    dp->nlink--;
+sysfile.c:  ip->nlink--;
+sysfile.c:  return -1;
+sysfile.c:    if(type == T_FILE && ip->type == T_FILE)
+sysfile.c:  if((ip = ialloc(dp->dev, type)) == 0)
+sysfile.c:  ip->major = major;
+sysfile.c:  ip->minor = minor;
+sysfile.c:  ip->nlink = 1;
+sysfile.c:    dp->nlink++;  // for ".."
+sysfile.c:    // No ip->nlink++ for ".": avoid cyclic ref count.
+sysfile.c:    if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
+sysfile.c:  if(dirlink(dp, name, ip->inum) < 0)
+sysfile.c:    return -1;
+sysfile.c:      return -1;
+sysfile.c:      return -1;
+sysfile.c:    if(ip->type == T_DIR && omode != O_RDONLY){
+sysfile.c:      return -1;
+sysfile.c:    return -1;
+sysfile.c:  f->type = FD_INODE;
+sysfile.c:  f->ip = ip;
+sysfile.c:  f->off = 0;
+sysfile.c:  f->readable = !(omode & O_WRONLY);
+sysfile.c:  f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:  if(ip->type != T_DIR){
+sysfile.c:    return -1;
+sysfile.c:  iput(proc->cwd);
+sysfile.c:  proc->cwd = ip;
+sysfile.c:    return -1;
+sysfile.c:      return -1;
+sysfile.c:      return -1;
+sysfile.c:      return -1;
+sysfile.c:    return -1;
+sysfile.c:    return -1;
+sysfile.c:  fd0 = -1;
+sysfile.c:      proc->ofile[fd0] = 0;
+sysfile.c:    return -1;
+sysproc.c:    return -1;
+sysproc.c:  return proc->pid;
+sysproc.c:    return -1;
+sysproc.c:  addr = proc->sz;
+sysproc.c:    return -1;
+sysproc.c:    return -1;
+sysproc.c:  while(ticks - ticks0 < n){
+sysproc.c:    if(proc->killed){
+sysproc.c:      return -1;
+timer.c:// Frequency of all three count-down timers;
+toc.ftr:The source listing is preceded by a cross-reference that lists every defined 
+trap.c:  last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
+trap.c:      return -1;
+trap.c:  if(tf->trapno == T_SYSCALL){
+trap.c:    if(proc->killed)
+trap.c:    proc->tf = tf;
+trap.c:    if(proc->killed)
+trap.c:  switch(tf->trapno){
+trap.c:    if(cpu->id == 0){
+trap.c:	if(proc->existInRAM[j]!=0)
+trap.c:	  pte = walkpgdir(proc->pgdir,proc->pagesInRAM[j].va,0);
+trap.c:	  proc->pagesInRAM[i].aging = (proc->pagesInRAM[i].aging)>>1;
+trap.c:	    proc->pagesInRAM[i].aging = proc->pagesInRAM[i].aging +128;
+trap.c:            cpu->id, tf->cs, tf->eip);
+trap.c:   // cprintf("------------ trap: T_PGFLT ----------------\n");
+trap.c:    pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
+trap.c:     // cprintf("------------ trap: T_PGFLT not present ------------\n");
+trap.c:	//cprintf("------------ trap: T_PGFLT not present and pagedout----------------\n");
+trap.c:	//cprintf("--------- trap: page found in rcr2 %x -------------\n",pageToSwap);
+trap.c:	  if(proc->pagesInFile[i]==pageToSwap)
+trap.c:	if(proc->countPagesInRAM == 15){
+trap.c:	  swap(proc->pgdir);
+trap.c:	proc->countPagesInRAM = proc->countPagesInRAM+1;
+trap.c:	mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
+trap.c:	  if(proc->existInRAM[i]==0)
+trap.c:	proc->existInRAM[i]=1;
+trap.c:	proc->pagesInRAM[i].va = (char*)pageToSwap;
+trap.c:	proc->pagesInRAM[i].ctime = time;
+trap.c:    if(proc == 0 || (tf->cs&3) == 0){
+trap.c:              tf->trapno, cpu->id, tf->eip, rcr2());
+trap.c:            "eip 0x%x addr 0x%x--kill proc\n",
+trap.c:            proc->pid, proc->name, tf->trapno, tf->err, cpu->id, tf->eip, 
+trap.c:    proc->killed = 1;
+trap.c:  if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+trap.c:  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
+trap.c:  if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+trapasm.S:  # Set up data and per-cpu segments.
+traps.h:// Processor-defined:
+traps.h:#define T_NMI            2      // non-maskable interrupt
+uart.c:  // Acknowledge pre-existing interrupt conditions;
+uart.c:    return -1;
+uart.c:    return -1;
+ulib.c:  return (uchar)*p - (uchar)*q;
+ulib.c:    return -1;
+ulib.c:    n = n*10 + *s++ - '0';
+ulib.c:  while(n-- > 0)
+umalloc.c:  bp = (Header*)ap - 1;
+umalloc.c:  for(p = freep; !(bp > p && bp < p->s.ptr); p = p->s.ptr)
+umalloc.c:    if(p >= p->s.ptr && (bp > p || bp < p->s.ptr))
+umalloc.c:  if(bp + bp->s.size == p->s.ptr){
+umalloc.c:    bp->s.size += p->s.ptr->s.size;
+umalloc.c:    bp->s.ptr = p->s.ptr->s.ptr;
+umalloc.c:    bp->s.ptr = p->s.ptr;
+umalloc.c:  if(p + p->s.size == bp){
+umalloc.c:    p->s.size += bp->s.size;
+umalloc.c:    p->s.ptr = bp->s.ptr;
+umalloc.c:    p->s.ptr = bp;
+umalloc.c:  if(p == (char*)-1)
+umalloc.c:  hp->s.size = nu;
+umalloc.c:  nunits = (nbytes + sizeof(Header) - 1)/sizeof(Header) + 1;
+umalloc.c:  for(p = prevp->s.ptr; ; prevp = p, p = p->s.ptr){
+umalloc.c:    if(p->s.size >= nunits){
+umalloc.c:      if(p->s.size == nunits)
+umalloc.c:        prevp->s.ptr = p->s.ptr;
+umalloc.c:        p->s.size -= nunits;
+umalloc.c:        p += p->s.size;
+umalloc.c:        p->s.size = nunits;
+usertests.c:// does chdir() call iput(p->cwd) in a transaction?
+usertests.c:// does exit() call iput(p->cwd) in a transaction?
+usertests.c://      return -1;
+usertests.c:      if(n == MAXFILE - 1){
+usertests.c:    printf(1, "link non-existant succeeded! oops\n");
+usertests.c:      i = de.name[1] - '0';
+usertests.c:    printf(1, "unlink dd (non-empty dir) succeeded!\n");
+usertests.c:    printf(1, "unlink non-empty dd succeeded!\n");
+usertests.c:  for(; n > 0; n--){
+usertests.c:  if(wait() != -1){
+usertests.c:    printf(stdout, "sbrk test failed post-fork\n");
+usertests.c:  amt = (BIG) - (uint)a;
+usertests.c:  lastaddr = (char*) (BIG-1);
+usertests.c:  // can one de-allocate?
+usertests.c:  c = sbrk(-4096);
+usertests.c:  if(c != a - 4096){
+usertests.c:  // can one re-allocate that page?
+usertests.c:    printf(stdout, "sbrk re-allocation failed, a %x c %x\n", a, c);
+usertests.c:    printf(stdout, "sbrk de-allocation didn't really deallocate\n");
+usertests.c:  c = sbrk(-(sbrk(0) - oldbrk));
+usertests.c:      sbrk(BIG - (uint)sbrk(0));
+usertests.c:    if(pids[i] != -1)
+usertests.c:    if(pids[i] == -1)
+usertests.c:    sbrk(-(sbrk(0) - oldbrk));
+usertests.c:    if(link("nosuchfile", (char*)p) != -1){
+usertests.c:  unlink("bigarg-ok");
+usertests.c:    for(i = 0; i < MAXARG-1; i++)
+usertests.c:    args[MAXARG-1] = 0;
+usertests.c:    fd = open("bigarg-ok", O_CREATE);
+usertests.c:  fd = open("bigarg-ok", 0);
+usertests.c:  unlink("bigarg-ok");
+usertests.c:    nfiles--;
+usertests.c:    printf(1, "already ran user tests -- rebuild fs.img\n");
+vectors.pl:#!/usr/bin/perl -w
+vectors.pl:print "# generated by vectors.pl - do not edit\n";
+vm.c:  c->gdt[SEG_KCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, 0);
+vm.c:  c->gdt[SEG_KDATA] = SEG(STA_W, 0, 0xffffffff, 0);
+vm.c:  c->gdt[SEG_UCODE] = SEG(STA_X|STA_R, 0, 0xffffffff, DPL_USER);
+vm.c:  c->gdt[SEG_UDATA] = SEG(STA_W, 0, 0xffffffff, DPL_USER);
+vm.c:  c->gdt[SEG_KCPU] = SEG(STA_W, &c->cpu, 8, 0);
+vm.c:  lgdt(c->gdt, sizeof(c->gdt));
+vm.c:  // Initialize cpu-local storage.
+vm.c:// be page-aligned.
+vm.c:  last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
+vm.c:      return -1;
+vm.c:    if(mappages(pgdir, k->virt, k->phys_end - k->phys_start, 
+vm.c:                (uint)k->phys_start, k->perm) < 0)
+vm.c:// Switch h/w page table register to the kernel-only page table,
+vm.c:  cpu->gdt[SEG_TSS] = SEG16(STS_T32A, &cpu->ts, sizeof(cpu->ts)-1, 0);
+vm.c:  cpu->gdt[SEG_TSS].s = 0;
+vm.c:  cpu->ts.ss0 = SEG_KDATA << 3;
+vm.c:  cpu->ts.esp0 = (uint)proc->kstack + KSTACKSIZE;
+vm.c:  if(p->pgdir == 0)
+vm.c:  lcr3(v2p(p->pgdir));  // switch to new address space
+vm.c:// Load a program segment into pgdir.  addr must be page-aligned
+vm.c:    if(sz - i < PGSIZE)
+vm.c:      n = sz - i;
+vm.c:      return -1;
+vm.c:  int minProc=-1;
+vm.c:      if(proc->existInRAM[i]==0)
+vm.c:      if(minctime> proc->pagesInRAM[i].ctime){
+vm.c:	minctime = proc->pagesInRAM[i].ctime;
+vm.c:    return proc->pagesInRAM[minProc].va;
+vm.c:	if(proc->existInRAM[i]==0)
+vm.c:	if(minctime> proc->pagesInRAM[i].ctime){
+vm.c:	  minctime = proc->pagesInRAM[i].ctime;
+vm.c:      pte = walkpgdir(proc->pgdir,proc->pagesInRAM[minProc].va,0);
+vm.c:	return proc->pagesInRAM[minProc].va;
+vm.c:    //cprintf("--------- findPageToSwap: choose page by NFU -------------\n");
+vm.c:      if(proc->existInRAM[i]==0)
+vm.c:      if(minAging> proc->pagesInRAM[i].aging){
+vm.c:	minAging = proc->pagesInRAM[i].aging;
+vm.c:    return proc->pagesInRAM[minProc].va;
+vm.c:  //cprintf("--------- swap: start -------------\n");
+vm.c:  //  cprintf("--------- swap: page found %x -------------\n",pageToSwap);
+vm.c:    if(proc->existInOffset[i]==0)
+vm.c:      //cprintf("--------- swap: empty offset in file  %d -------------\n",i);  
+vm.c:    if(proc->pagesInRAM[j].va== pageToSwap)
+vm.c:      proc->existInRAM[j]=0;
+vm.c:  proc->existInOffset[i]=1;   
+vm.c:    //cprintf("--------- swap: page has moved to file  -------------\n");
+vm.c:  proc->countPagesInRAM = proc->countPagesInRAM-1;
+vm.c:  proc->pagesInFile[i] = pageToSwap;
+vm.c:  //cprintf("--------- swap: done  -------------\n"); 
+vm.c:    if(proc->countPagesInRAM == 15 && !(strncmp("sh",proc->name,3) == 0) && !(strncmp("init",proc->name,5) == 0)){
+vm.c:    proc->countPagesInRAM = proc->countPagesInRAM+1;
+vm.c:    //cprintf("-------- allocuvm: count = %d---------------\n",count);
+vm.c:    //cprintf("-------- allocuvm: pgaddr = %x -------------\n",(char*)a);
+vm.c:      if(proc->existInRAM[i]==0)
+vm.c:    proc->existInRAM[i]=1;
+vm.c:    proc->pagesInRAM[i].va = (char*)a;
+vm.c:    proc->pagesInRAM[i].ctime = time;
+vm.c:// newsz.  oldsz and newsz need not be page-aligned, nor does newsz
+vm.c:      a += (NPTENTRIES - 1) * PGSIZE;
+vm.c:      proc->countPagesInRAM = proc->countPagesInRAM-1;
+vm.c:      return -1;
+vm.c:    n = PGSIZE - (va - va0);
+vm.c:    memmove(pa0 + (va - va0), buf, n);
+vm.c:    len -= n;
+x86.h:  pd[0] = size-1;
+x86.h:  pd[0] = size-1;
+x86.h:  // The + in "+m" denotes a read-modify-write operand.
