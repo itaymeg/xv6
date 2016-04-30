@@ -156,21 +156,23 @@ fork(void)
 	}
 	np->sz = proc->sz;
 	np->parent = proc;
-	if (proc != initproc && proc != 0 && !strncmp("sh",proc->name,2) && proc->swapFile != 0) {
-		np->pages = proc->pages;
-		createSwapFile(np);
-		np->swapFile->ip = proc->swapFile->ip;
-		np->swapFile->type = proc->swapFile->type;
-		np->swapFile->off = proc->swapFile->off;
-		np->swapFile->readable = proc->swapFile->readable;
-		np->swapFile->writable = proc->swapFile->writable;
-		char buf[PGSIZE/2];
-		int toRead;
-		//	readFromSwapFile(proc, buf,0, PGSIZE*17);
-		//	writeToSwapFile(np, buf,0 , PGSIZE*17);
-		for(i=0;i<30;i++){
-			toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
-			writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
+	if (SELECTION != NONE){
+		if (proc != initproc && proc != 0 && !strncmp("sh",proc->name,2) && proc->swapFile != 0) {
+			np->pages = proc->pages;
+			createSwapFile(np);
+			np->swapFile->ip = proc->swapFile->ip;
+			np->swapFile->type = proc->swapFile->type;
+			np->swapFile->off = proc->swapFile->off;
+			np->swapFile->readable = proc->swapFile->readable;
+			np->swapFile->writable = proc->swapFile->writable;
+			char buf[PGSIZE/2];
+			int toRead;
+			//	readFromSwapFile(proc, buf,0, PGSIZE*17);
+			//	writeToSwapFile(np, buf,0 , PGSIZE*17);
+			for(i=0;i<30;i++){
+				toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
+				writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
+			}
 		}
 	}
 	*np->tf = *proc->tf;
@@ -236,20 +238,22 @@ exit(void)
 
 	// Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;
-	if (proc != 0 && !strncmp("sh",proc->name,2)){
-		removeSwapFile(proc);
-		pages_info newPages;
-		proc->pages = newPages;
-		if(VERBOSE_PRINT == TRUE) {
-			static char *states[] = {
-					[UNUSED]    "unused",
-					[EMBRYO]    "embryo",
-					[SLEEPING]  "sleep ",
-					[RUNNABLE]  "runble",
-					[RUNNING]   "run   ",
-					[ZOMBIE]    "zombie"
-			};
-			cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+	if (SELECTION != NONE){
+		if (proc != 0 && !strncmp("sh",proc->name,2)){
+			removeSwapFile(proc);
+			pages_info newPages;
+			proc->pages = newPages;
+			if(VERBOSE_PRINT == TRUE) {
+				static char *states[] = {
+						[UNUSED]    "unused",
+						[EMBRYO]    "embryo",
+						[SLEEPING]  "sleep ",
+						[RUNNABLE]  "runble",
+						[RUNNING]   "run   ",
+						[ZOMBIE]    "zombie"
+				};
+				cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+			}
 		}
 	}
 
@@ -284,10 +288,14 @@ wait(void)
 				p->parent = 0;
 				p->name[0] = 0;
 				p->killed = 0;
-				pages_info newPages;
-				p->pages = newPages;
+				if (SELECTION != NONE){
+					pages_info newPages;
+					p->pages = newPages;
+				}
 				release(&ptable.lock);
-				removeSwapFile(p);
+				if (SELECTION != NONE){
+					removeSwapFile(p);
+				}
 				return pid;
 			}
 		}
@@ -341,11 +349,14 @@ scheduler(void)
 
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
-		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+		if (SELECTION != NONE){
 			int isShellOrInit = strncmp("sh",p->name,2) || strncmp("init",p->name,3);
-			int isUnusedOrEmbryo = (p->state == EMBRYO) || (p->state == UNUSED);
-			if (!(isShellOrInit || isUnusedOrEmbryo)){
-				updateAge(p);
+			int isUnusedOrEmbryo;
+			for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+				isUnusedOrEmbryo = (p->state == EMBRYO) || (p->state == UNUSED);
+				if (!(isShellOrInit || isUnusedOrEmbryo)){
+					updateAge(p);
+				}
 			}
 		}
 

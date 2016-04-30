@@ -92,6 +92,7 @@ trap(struct trapframe *tf)
 	  int emptySlotMemory;
 	  char * retrievedPageMem;
 	  uint pageToRetrieve;
+	  proc->pages.pageFaults++;
 	  pageToRetrieve = rcr2();
 	  pte_t* pageToRetrieve_pte = walkpgdir(proc->pgdir, (const void*) pageToRetrieve, 0);
 	  swapped = !(*pageToRetrieve_pte & PTE_P) & !(*pageToRetrieve_pte & ~PTE_PG);  //check if page was swapped out

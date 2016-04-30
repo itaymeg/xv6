@@ -288,6 +288,7 @@ uint moveToDisk(pde_t *pgdir){
 	*pageToMove_pte = *pageToMove_pte | PTE_PG;	//turn on swapped out flag
 	proc->pages.memory.count--;
 	proc->pages.disk.count++;
+	proc->pages.totalPagedOut++;
 	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = PGROUNDDOWN(pageToMove);
 	return pageToMoveIdx; //index for empty page slot
 }
@@ -309,8 +310,10 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 	a = PGROUNDUP(oldsz);
 	int isShellOrInit = strncmp("sh",proc->name,2) || strncmp("init",proc->name,3);
 	for(; a < newsz; a += PGSIZE){
-		if(proc->pages.memory.count == 15 && !isShellOrInit){
-			freePageIdx = moveToDisk(pgdir);
+		if (SELECTION != NONE){
+			if(proc->pages.memory.count == 15 && !isShellOrInit){
+				freePageIdx = moveToDisk(pgdir);
+			}
 		}
 		mem = kalloc();
 		if(mem == 0){
@@ -320,12 +323,14 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 		}
 		memset(mem, 0, PGSIZE);
 		mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
-		proc->pages.memory.pageTables[freePageIdx].used = PAGE_USED;
-		int t = ticks;
-		proc->pages.memory.pageTables[freePageIdx].ctime = t;
-		proc->pages.memory.lastEnterTime = t;
-		proc->pages.memory.count++;
-		proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
+		if (SELECTION != NONE){
+			proc->pages.memory.pageTables[freePageIdx].used = PAGE_USED;
+			int t = ticks;
+			proc->pages.memory.pageTables[freePageIdx].ctime = t;
+			proc->pages.memory.lastEnterTime = t;
+			proc->pages.memory.count++;
+			proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
+		}
 	}
 	return newsz;
 }
@@ -354,7 +359,9 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 				panic("kfree");
 			char *v = p2v(pa);
 			kfree(v);
-			proc->pages.memory.count--;
+			if (SELECTION != NONE){
+				proc->pages.memory.count--;
+			}
 			*pte = 0;
 		}
 	}
