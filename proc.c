@@ -126,13 +126,13 @@ growproc(int n)
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
 struct file {
-  enum { FD_NONE, FD_PIPE, FD_INODE } type;
-  int ref; // reference count
-  char readable;
-  char writable;
-  struct pipe *pipe;
-  struct inode *ip;
-  uint off;
+	enum { FD_NONE, FD_PIPE, FD_INODE } type;
+	int ref; // reference count
+	char readable;
+	char writable;
+	struct pipe *pipe;
+	struct inode *ip;
+	uint off;
 };
 
 int
@@ -154,16 +154,21 @@ fork(void)
 	np->sz = proc->sz;
 	np->parent = proc;
 	if (proc != initproc && proc != 0 && !strncmp("sh",proc->name,2) && proc->swapFile != 0) {
-	np->pages = proc->pages;
-	createSwapFile(np);
-	np->swapFile->ip = proc->swapFile->ip;
-	np->swapFile->type = proc->swapFile->type;
-	np->swapFile->off = proc->swapFile->off;
-	np->swapFile->readable = proc->swapFile->readable;
-	np->swapFile->writable = proc->swapFile->writable;
-	char buf[PGSIZE*17];
-	readFromSwapFile(proc, buf,0, PGSIZE*17);
-	writeToSwapFile(np, buf,0 , PGSIZE*17);
+		np->pages = proc->pages;
+		createSwapFile(np);
+		np->swapFile->ip = proc->swapFile->ip;
+		np->swapFile->type = proc->swapFile->type;
+		np->swapFile->off = proc->swapFile->off;
+		np->swapFile->readable = proc->swapFile->readable;
+		np->swapFile->writable = proc->swapFile->writable;
+		char buf[PGSIZE/2];
+		int toRead;
+		//	readFromSwapFile(proc, buf,0, PGSIZE*17);
+		//	writeToSwapFile(np, buf,0 , PGSIZE*17);
+		for(i=0;i<30;i++){
+			toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
+			writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
+		}
 	}
 	*np->tf = *proc->tf;
 
@@ -228,9 +233,11 @@ exit(void)
 
 	// Jump into the scheduler, never to return.
 	proc->state = ZOMBIE;
-	//removeSwapFile(proc);
-	//pages_info newPages;
-	//proc->pages = newPages;
+	if (proc != 0 && !strncmp("sh",proc->name,2)){
+		removeSwapFile(proc);
+		pages_info newPages;
+		proc->pages = newPages;
+	}
 
 	sched();
 	panic("zombie exit");
@@ -263,10 +270,10 @@ wait(void)
 				p->parent = 0;
 				p->name[0] = 0;
 				p->killed = 0;
-				//pages_info newPages;
-				//p->pages = newPages;
+				pages_info newPages;
+				p->pages = newPages;
 				release(&ptable.lock);
-				//removeSwapFile(p);
+				removeSwapFile(p);
 				return pid;
 			}
 		}

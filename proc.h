@@ -3,7 +3,7 @@
 #define PAGE_USED 1
 #define PAGE_UNUSED 0
 #define MAX_PSYC_PAGES 15
-#define MAX_TOTAL_PAGES 30
+#define MAX_TOTAL_PAGES
 
 // Per-CPU state
 struct cpu {
