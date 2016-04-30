@@ -11,6 +11,7 @@ extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 struct segdesc gdt[NSEGS];
 
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -42,7 +43,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
-static pte_t *
+pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
   pde_t *pde;
@@ -67,7 +68,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned.
-static int
+int
 mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 {
   char *a, *last;
@@ -216,15 +217,36 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 
 uint moveToDisk(pde_t *pgdir){
-	int i;
+	int pageToMoveIdx;
 	int j;
+	int k;
 	pte_t *pageToMove_pte;
 	uint pageToMove;
-	for(i = 0; i < MAX_PSYC_PAGES; i++){
-		if (proc->pages.memory.pageTables[i].used == PAGE_USED) {
-			pageToMove = proc->pages.memory.pageTables[i].virtualAddress;
+	switch (SELECTION){
+	case FIFO:
+		pageToMoveIdx = -1;
+		for (k = 0; k < MAX_PSYC_PAGES; k++){
+			if (proc.pages.memory.pageTables[k].used == PAGE_USED && pageToMoveIdx == -1){
+				pageToMoveIdx = k;
+			}
+			else if (proc.pages.memory.pageTables[k].used == PAGE_USED &&
+					(proc.pages.memory.pageTables[k].ctime < proc.pages.memory.pageTables[pageToMoveIdx].ctime)){
+				pageToMoveIdx = k;
+			}
+		}
+		break;
+	case SCFIFO:
+		break;
+	case NFU:
+		break;
+	default:
+
+	}
+	for(pageToMoveIdx = 0; pageToMoveIdx < MAX_PSYC_PAGES; pageToMoveIdx++){
+		if (proc->pages.memory.pageTables[pageToMoveIdx].used == PAGE_USED) {
+			pageToMove = proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress;
 			pageToMove_pte = walkpgdir(pgdir,(char *) pageToMove,0);
-			proc->pages.memory.pageTables[i].used = PAGE_UNUSED;
+			proc->pages.memory.pageTables[pageToMoveIdx].used = PAGE_UNUSED;
 			break;
 		}
 	}
@@ -239,8 +261,8 @@ uint moveToDisk(pde_t *pgdir){
 	*pageToMove_pte = *pageToMove_pte | PTE_PG;	//turn on swapped out flag
 	proc->pages.memory.count--;
 	proc->pages.disk.count++;
-	proc->pages.disk.pageTables[i].virtualAddress = pageToMove;
-	return i; //index for empty page slot
+	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = PGROUNDDOWN(pageToMove);
+	return pageToMoveIdx; //index for empty page slot
 }
 
 // Allocate page tables and physical memory to grow process from oldsz to
@@ -258,8 +280,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return oldsz;
 
   a = PGROUNDUP(oldsz);
+  int isShellOrInit = strncmp("sh",proc->name,2) || strncmp("init",proc->name,3);
   for(; a < newsz; a += PGSIZE){
-	  int isShellOrInit = strncmp("sh",proc->name,2) || strncmp("init",proc->name,3);
 	  if(proc->pages.memory.count == 15 && !isShellOrInit){
 		  freePageIdx = moveToDisk(pgdir);
 	  }
@@ -272,6 +294,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
     proc->pages.memory.pageTables[freePageIdx].used = PAGE_USED;
+    proc->pages.memory.pageTables[freePageIdx].ctime = ticks;
+    proc->pages.memory.count++;
     proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
   }
   return newsz;

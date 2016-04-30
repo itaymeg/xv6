@@ -55,6 +55,7 @@ struct context {
 
 typedef struct page {
 	int used;
+	int ctime;
 	uint virtualAddress;
 } page;
 

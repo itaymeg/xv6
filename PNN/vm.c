@@ -280,9 +280,6 @@ swap(pde_t *pgdir){
   //  cprintf("--------- swap: page found %x -------------\n",pageToSwap);
 
   pte_t *pte = walkpgdir(pgdir,pageToSwap,0);
-  for(i=0;i<15;i++)
-    if(proc->existInOffset[i]==0)
-      break; 
 
       //cprintf("--------- swap: empty offset in file  %d -------------\n",i);  
 
@@ -321,7 +318,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   for(; a < newsz; a += PGSIZE){
     if(proc->countPagesInRAM == 15 && !(strncmp("sh",proc->name,3) == 0) && !(strncmp("init",proc->name,5) == 0)){
      // cprintf("***********  allocuvm: count = %d ****************\n",count);
-      swap(pgdir);
+      swap();
       
     }
     proc->countPagesInRAM = proc->countPagesInRAM+1;
@@ -338,7 +335,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     //cprintf("-------- allocuvm: pgaddr = %x -------------\n",(char*)a);
     for(i=0;i<15;i++){
       if(proc->existInRAM[i]==0)
-	break;
+	   break;
     }
     proc->existInRAM[i]=1;
     proc->pagesInRAM[i].va = (char*)a;

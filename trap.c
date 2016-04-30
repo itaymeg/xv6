@@ -13,6 +13,11 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+uint moveToDisk(pde_t *pgdir);
+pte_t *
+walkpgdir(pde_t *pgdir, const void *va, int alloc);
+int
+mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm);
 
 void
 tvinit(void)
@@ -79,6 +84,51 @@ trap(struct trapframe *tf)
     break;
    
   //PAGEBREAK: 13
+  case T_PGFLT:
+	  cprintf("page fault! \n");
+	  int swapped;
+	  int diskPageIdx;
+	  int found = 0;
+	  int emptySlotMemory;
+	  char * retrievedPageMem;
+	  uint pageToRetrieve;
+	  pageToRetrieve = rcr2();
+	  pte_t* pageToRetrieve_pte = walkpgdir(proc->pgdir, (const void*) pageToRetrieve, 0);
+	  swapped = !(*pageToRetrieve_pte & PTE_P) & !(*pageToRetrieve_pte & ~PTE_PG);  //check if page was swapped out
+	  if (swapped){
+		  for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
+			  if (proc->pages.disk.pageTables[diskPageIdx].virtualAddress == PGROUNDDOWN(pageToRetrieve)){
+				  found = 1;
+				  break;
+			  }
+		  }
+//TODO remove debug lines
+		  if (!found) cprintf("Page is not in disk!!!!!\n");
+//finish debug
+		  if (proc->pages.memory.count == MAX_PSYC_PAGES){
+			  emptySlotMemory = moveToDisk(proc->pgdir);
+		  }
+		  else {
+			  for (emptySlotMemory = 0; emptySlotMemory < MAX_PSYC_PAGES; emptySlotMemory++){
+				  if (proc->pages.memory.pageTables[emptySlotMemory].used == PAGE_UNUSED){
+					  proc->pages.memory.pageTables[emptySlotMemory].used = PAGE_USED;
+					  break;
+				  }
+			  }
+		  }
+		  retrievedPageMem = kalloc();
+		  if(retrievedPageMem == 0){
+		  	  cprintf("allocuvm out of memory\n");
+		  	  return;
+		  	}
+		  readFromSwapFile(proc,retrievedPageMem,diskPageIdx*PGSIZE,PGSIZE);
+		  mappages(proc->pgdir, (char*)PGROUNDDOWN(pageToRetrieve), PGSIZE, v2p(retrievedPageMem), PTE_W|PTE_U);
+		  proc->pages.memory.count++;
+		  proc->pages.disk.count--;
+		  proc->pages.disk.pageTables[diskPageIdx].used = PAGE_UNUSED;
+		  proc->pages.memory.pageTables[emptySlotMemory].virtualAddress = PGROUNDDOWN(pageToRetrieve);
+	  };
+	  break;
   default:
     if(proc == 0 || (tf->cs&3) == 0){
       // In kernel, it must be our mistake.

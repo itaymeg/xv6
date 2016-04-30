@@ -500,3 +500,6 @@ procdump(void)
 		cprintf("\n");
 	}
 }
+
+//int
+//retrivePageFromDisk

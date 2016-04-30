@@ -147,6 +147,7 @@ trap(struct trapframe *tf)
     pageToSwap = (char*)PGROUNDDOWN(rcr2());
     pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
     
+    
     if(!(*pte & PTE_P)){
      // cprintf("------------ trap: T_PGFLT not present ------------\n");
       if(*pte & PTE_PG){
