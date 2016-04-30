@@ -8,6 +8,9 @@
 #include "spinlock.h"
 #include "fs.h"
 
+pte_t *
+walkpgdir(pde_t *pgdir, const void *va, int alloc);
+
 struct {
 	struct spinlock lock;
 	struct proc proc[NPROC];
@@ -298,6 +301,25 @@ wait(void)
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void
+updateAge (struct proc* p){
+	int i;
+	pte_t * page;
+	for (i = 0; i < MAX_PSYC_PAGES; i++){
+		if (p->pages.memory.pageTables[i].used == PAGE_USED){
+			page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
+			if (*page & PTE_A){	//check if reference bit is on
+				*page = *page & ~PTE_A;		//turn reference off
+				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
+				p->pages.memory.pageTables[i].age += GROW;
+			}
+			else{
+				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
+			}
+		}
+	}
+}
+
+void
 scheduler(void)
 {
 	struct proc *p;
@@ -308,6 +330,14 @@ scheduler(void)
 
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
+		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+			int isShellOrInit = strncmp("sh",p->name,2) || strncmp("init",p->name,3);
+			int isUnusedOrEmbryo = (p->state == EMBRYO) || (p->state == UNUSED);
+			if (!(isShellOrInit || isUnusedOrEmbryo)){
+				updateAge(p);
+			}
+		}
+
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 			if(p->state != RUNNABLE)
 				continue;

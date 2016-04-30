@@ -4,6 +4,7 @@
 #define PAGE_UNUSED 0
 #define MAX_PSYC_PAGES 15
 #define MAX_TOTAL_PAGES
+#define GROW	1 << 31
 
 // Per-CPU state
 struct cpu {
@@ -56,12 +57,14 @@ struct context {
 typedef struct page {
 	int used;
 	int ctime;
+	int age;
 	uint virtualAddress;
 } page;
 
 typedef struct pages_data{
 	int count;
 	page pageTables[15];
+	int lastEnterTime;
 } pages_data;
 
 typedef struct pages_info {
