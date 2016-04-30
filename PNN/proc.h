@@ -82,6 +82,9 @@ struct proc {
   
  struct page pagesInRAM[15];
  int existInRAM[15];
+ 
+ int numOfPageFaults;
+ int numOfPagedOut;
 
 };
 

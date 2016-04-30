@@ -41,6 +41,13 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+	  int swapped;
+	  int diskPageIdx;
+	  int found = 0;
+	  int emptySlotMemory;
+	  char * retrievedPageMem;
+	  uint pageToRetrieve;
+
   if(tf->trapno == T_SYSCALL){
     if(proc->killed)
       exit();
@@ -85,13 +92,6 @@ trap(struct trapframe *tf)
    
   //PAGEBREAK: 13
   case T_PGFLT:
-	  cprintf("page fault! \n");
-	  int swapped;
-	  int diskPageIdx;
-	  int found = 0;
-	  int emptySlotMemory;
-	  char * retrievedPageMem;
-	  uint pageToRetrieve;
 	  proc->pages.pageFaults++;
 	  pageToRetrieve = rcr2();
 	  pte_t* pageToRetrieve_pte = walkpgdir(proc->pgdir, (const void*) pageToRetrieve, 0);

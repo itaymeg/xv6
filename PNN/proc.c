@@ -81,6 +81,9 @@ found:
     p->existInOffset[i]=0;
    p->existInRAM[i]=0;
   }
+  
+  p->numOfPageFaults=0;
+  p->numOfPagedOut=0;
   return p;
 }
 
@@ -191,6 +194,9 @@ fork(void)
       np->pagesInRAM[i].ctime =  proc->pagesInRAM[i].ctime; 
       np->existInRAM[i] = proc->existInRAM[i];
     }
+    np->numOfPageFaults=proc->numOfPageFaults;
+    np->numOfPagedOut=proc->numOfPagedOut;
+
   
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -276,6 +282,9 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
+	if(VERBOSE_PRINT==TRUE){
+	  cprintf("<percentage>%\n");
+	}
 	ptemp.swapFile= p->swapFile;
         pid = p->pid;
         kfree(p->kstack);
@@ -499,6 +508,8 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
+  int count1=0;
+  int count2=0;
   
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
@@ -507,7 +518,17 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    count1=0;
+    count2=0;
+    for(i=0;i<15;i++){
+      if(p->existInRAM[i]==1)
+	count1++;
+      if(p->existInOffset[i]==1)
+	count2++;
+    }
+    cprintf("%d %s %d %d %d %d %s", p->pid, state,count1+count2,count2,p->numOfPageFaults,p->numOfPagedOut, p->name);
+    
+//     cprintf("\n%d %d %d\n",p->pid,count1,count2); 
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)

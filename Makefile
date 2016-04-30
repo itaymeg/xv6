@@ -53,6 +53,11 @@ endif
 ifndef SELECTION
 	SELECTION := NFU
 endif
+
+ifndef VERBOSE_PRINT
+	VERBOSE_PRINT:= FALSE
+endif	
+
 # If the makefile can't find QEMU, specify its path here
 # QEMU = qemu-system-i386
 
@@ -72,7 +77,7 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
-CC = $(TOOLPREFIX)gcc -DSELECTION=$(SELECTION)
+CC = $(TOOLPREFIX)gcc -DSELECTION=$(SELECTION) -DVERBOSE_PRINT=$(VERBOSE_PRINT)
 AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
@@ -151,7 +156,7 @@ _forktest: forktest.o $(ULIB)
 	$(OBJDUMP) -S _forktest > forktest.asm
 
 mkfs: mkfs.c fs.h
-	gcc -DSELECTION=$(SELECTION) -Werror -Wall -o mkfs mkfs.c
+	gcc -DSELECTION=$(SELECTION) -DVERBOSE_PRINT=$(VERBOSE_PRINT) -Werror -Wall -o mkfs mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -244,7 +249,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c usertests.c wc.c zombie.c\
-	printf.c umalloc.c\
+	printf.c umalloc.c myMemTest.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 

@@ -143,10 +143,10 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_PGFLT:
-   // cprintf("------------ trap: T_PGFLT ----------------\n");
+    proc->numOfPageFaults++;
+   cprintf("------------ trap: T_PGFLT ----------------\n");
     pageToSwap = (char*)PGROUNDDOWN(rcr2());
     pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
-    
     
     if(!(*pte & PTE_P)){
      // cprintf("------------ trap: T_PGFLT not present ------------\n");

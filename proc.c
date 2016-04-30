@@ -8,8 +8,7 @@
 #include "spinlock.h"
 #include "fs.h"
 
-uint kernelPages = 0;
-uint currentPages = 0;
+
 pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc);
 
@@ -78,15 +77,7 @@ allocproc(void)
 
 	return p;
 }
-void calcKernelPages() {
-	struct run * memList = kmem.freelist;
-	while(memList != 0) {
-		kernelPages++;
-		currentPages++;
-		memList = memList->next;
-	}
 
-}
 
 //PAGEBREAK: 32
 // Set up first user process.
@@ -196,7 +187,6 @@ fork(void)
 		if(proc->ofile[i])
 			np->ofile[i] = filedup(proc->ofile[i]);
 	np->cwd = idup(proc->cwd);
-
 	safestrcpy(np->name, proc->name, sizeof(proc->name));
 
 	pid = np->pid;
@@ -566,8 +556,10 @@ procdump(void)
 		}
 		cprintf("\n");
 	}
-	uint freePages = (currentPages*100)/kernelPages;
-	cprintf("%d\% free pages in the system" ,freePages);
+	cprintf("current = %d\n", getCurrentPages());
+	cprintf("kernel = %d\n", getKernelPages());
+	uint freePages = (getCurrentPages()*100)/getKernelPages();
+	cprintf("%d\% free pages in the system\n" ,freePages);
 }
 
 //int

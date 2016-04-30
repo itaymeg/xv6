@@ -17,13 +17,18 @@ volatile int
 main(int argc, char *argv[])
 {
 
-  int i,j;
+  int i,j,k;
 
   //creating 'COUNT' pages
   for (i = 0; i < COUNT ; ++i)
   {
+    k=0;
   m1[i] = sbrk(PGSIZE);
+
   printf(1, "allocated page #%d at address: %x\n", i, m1[i]);
+  while(k<100000000)
+    k++;
+  printf(1,"continue\n");
   }
 
   printf(1,"Finished allocating pages\n");
@@ -37,6 +42,7 @@ main(int argc, char *argv[])
   }
 
   printf(1,"Finished Successfuly!!!\n");
+
 
   exit();
   return 0;

@@ -15,4 +15,6 @@
 #define SCFIFO       2
 #define NFU          3
 #define NONE         4
+#define FALSE        0
+#define TRUE         1
 

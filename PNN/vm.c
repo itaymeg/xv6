@@ -274,12 +274,15 @@ static int count = 0;
 
 void
 swap(pde_t *pgdir){
-  //cprintf("--------- swap: start -------------\n");
+  cprintf("--------- swap: start -------------\n");
   int i,j;
   char* pageToSwap = findPageToSwap();
-  //  cprintf("--------- swap: page found %x -------------\n",pageToSwap);
+  cprintf("--------- swap: page found %x -------------\n",pageToSwap);
 
   pte_t *pte = walkpgdir(pgdir,pageToSwap,0);
+  for(i=0;i<15;i++)
+    if(proc->existInOffset[i]==0)
+      break; 
 
       //cprintf("--------- swap: empty offset in file  %d -------------\n",i);  
 
@@ -316,9 +319,9 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
-    if(proc->countPagesInRAM == 15 && !(strncmp("sh",proc->name,3) == 0) && !(strncmp("init",proc->name,5) == 0)){
-     // cprintf("***********  allocuvm: count = %d ****************\n",count);
-      swap();
+    cprintf("proc->countPagesInRAM = %d \n",proc->countPagesInRAM); 
+    if(proc->countPagesInRAM == 15 && (!(strncmp("sh",proc->name,3) == 0)) && (!(strncmp("init",proc->name,5) == 0))){
+      swap(pgdir);
       
     }
     proc->countPagesInRAM = proc->countPagesInRAM+1;
@@ -335,14 +338,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     //cprintf("-------- allocuvm: pgaddr = %x -------------\n",(char*)a);
     for(i=0;i<15;i++){
       if(proc->existInRAM[i]==0)
-	   break;
+	break;
     }
     proc->existInRAM[i]=1;
     proc->pagesInRAM[i].va = (char*)a;
     time++;
     proc->pagesInRAM[i].ctime = time;
   }
-  //cprintf("*************************\n");
   return newsz;
 }
 
@@ -357,6 +359,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   pte_t *pte;
   uint a, pa;
+  int i;
 
   if(newsz >= oldsz)
     return oldsz;
@@ -371,8 +374,13 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(pa == 0)
         panic("kfree");
       char *v = p2v(pa);
+      for(i=0;i<15;i++){
+	if(proc->pagesInRAM[i].va==v)
+	  break;
+      }
       kfree(v);
       proc->countPagesInRAM = proc->countPagesInRAM-1;
+      proc->existInRAM[i]=0;
       *pte = 0;
     }
   }
