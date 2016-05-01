@@ -7,7 +7,8 @@
 #include "x86.h"
 #include "elf.h"
 
-#define w(x)	{cprintf("name: %s\n", #x);}
+//#define w(x)	{cprintf("name: %s\n", #x);}
+#define w(x)	;
 
 int
 exec(char *path, char **argv)

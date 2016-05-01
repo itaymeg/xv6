@@ -786,7 +786,7 @@ readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
 	cprintf("read\n");
 	p->swapFile->off = placeOnFile;
-	cprintf("proc pid = %d\n", proc->pid);
+	//cprintf("proc pid = %d\n", proc->pid);
 	return fileread(p->swapFile, buffer,  size);
 }
 

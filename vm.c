@@ -7,11 +7,13 @@
 #include "proc.h"
 #include "elf.h"
 
-#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
-#define VALS(x) cprintf("%s = %s\n",#x ,x);
+//#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
+#define VALD(x) ;
+//#define VALS(x) cprintf("%s = %s\n",#x ,x);
+#define VALS(x) ;
 
-#define w(x)	{cprintf("name: %s\n", #x);}
-//#define w(x)	;
+//#define w(x)	{cprintf("name: %s\n", #x);}
+#define w(x)	;
 
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
@@ -226,8 +228,8 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 
 uint moveToDisk(pde_t *pgdir){
 	w(movetodisk)
-			int pageToMoveIdx;
-	int j;
+	int pageToMoveIdx;
+	int slotInDiskIdx;
 	int k;
 	pte_t *pageToMove_pte;
 	uint pageToMove;
@@ -286,20 +288,21 @@ uint moveToDisk(pde_t *pgdir){
 			break;
 		}
 	}
-	for(j = 0; j  < MAX_PSYC_PAGES; j++){
-		if (proc->pages.disk.pageTables[j].used == PAGE_UNUSED){
-			proc->pages.disk.pageTables[j].used = PAGE_USED;
+	for(slotInDiskIdx = 0; slotInDiskIdx  < MAX_PSYC_PAGES; slotInDiskIdx++){
+		if (proc->pages.disk.pageTables[slotInDiskIdx].used == PAGE_UNUSED){
+			proc->pages.disk.pageTables[slotInDiskIdx].used = PAGE_USED;
 			break;
 		}
 	}
-	writeToSwapFile(proc,(char *) pageToMove, j*PGSIZE,PGSIZE);
+	writeToSwapFile(proc,(char *) pageToMove, slotInDiskIdx*PGSIZE,PGSIZE);
 	*pageToMove_pte = *pageToMove_pte & ~PTE_P;		//turn off presence flag
 	*pageToMove_pte = *pageToMove_pte | PTE_PG;	//turn on swapped out flag
 	proc->pages.memory.count--;
 	proc->pages.disk.count++;
 	proc->pages.totalPagedOut++;
 	//	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = PGROUNDDOWN(pageToMove);
-	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = pageToMove;
+//	cprintf("$$$$$$$$$$$$$$ Page To Move   %d    %d\n", slotInDiskIdx, pageToMove);
+	proc->pages.disk.pageTables[slotInDiskIdx].virtualAddress = pageToMove;
 	return pageToMoveIdx; //index for empty page slot
 }
 

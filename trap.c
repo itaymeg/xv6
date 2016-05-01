@@ -9,9 +9,12 @@
 #include "spinlock.h"
 
 int print_var = 0;
-#define PRINT {print_var++; cprintf("#### %d\n", print_var);}
-#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
-#define VALS(x) cprintf("%s = %s\n" ,#x ,x);
+//#define PRINT {print_var++; cprintf("#### %d\n", print_var);}
+#define PRINT ;
+//#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
+#define VALD(x) ;
+//#define VALS(x) cprintf("%s = %s\n" ,#x ,x);
+#define VALS(x) ;
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
@@ -96,53 +99,59 @@ trap(struct trapframe *tf)
 
 	//PAGEBREAK: 13
 	case T_PGFLT:
-
-		cprintf("add %d\n", rcr2());
-		panic("page fault!!!!!!\n");
-		proc->pages.pageFaults++;
-		pageToRetrieve = PGROUNDDOWN(rcr2());
-		pte_t* pageToRetrieve_pte = walkpgdir(proc->pgdir, (char*) pageToRetrieve, 0);
-		swapped = ~(*pageToRetrieve_pte & PTE_P); //& (*pageToRetrieve_pte & PTE_PG);  //check if page was swapped out
-		if (swapped) swapped = *pageToRetrieve_pte & PTE_PG;
-		else swapped = 0;
-		if (swapped){
-			for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
-				if (proc->pages.disk.pageTables[diskPageIdx].virtualAddress == pageToRetrieve){
-					found = 1;
-					break;
-				}
-			}
-			//TODO remove debug lines
-			if (!found) panic("Page is not in disk!!!!!\n");
-			//finish debug
-			if (proc->pages.memory.count == MAX_PSYC_PAGES){
-				emptySlotMemory = moveToDisk(proc->pgdir);
-			}
-			else {
-				for (emptySlotMemory = 0; emptySlotMemory < MAX_PSYC_PAGES; emptySlotMemory++){
-					if (proc->pages.memory.pageTables[emptySlotMemory].used == PAGE_UNUSED){
-						proc->pages.memory.pageTables[emptySlotMemory].used = PAGE_USED;
-						proc->pages.memory.count++;
+//		cprintf("number %d\n", proc->pages.memory.count);
+//		cprintf("add %x\n", rcr2());
+//		if (rcr2() == 0xf000) {
+//			for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
+//				cprintf("add %d %d\n", diskPageIdx, proc->pages.disk.pageTables[diskPageIdx].virtualAddress);
+//			}
+//		}
+			//panic("page fault!!!!!!\n");
+			proc->pages.pageFaults++;
+			pageToRetrieve = PGROUNDDOWN(rcr2());
+			pte_t* pageToRetrieve_pte = walkpgdir(proc->pgdir, (char*) pageToRetrieve, 0);
+			swapped = ~(*pageToRetrieve_pte & PTE_P); //& (*pageToRetrieve_pte & PTE_PG);  //check if page was swapped out
+			if (swapped) swapped = *pageToRetrieve_pte & PTE_PG;
+			else swapped = 0;
+			if (swapped){
+				for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
+					if (proc->pages.disk.pageTables[diskPageIdx].virtualAddress == pageToRetrieve){
+						found = 1;
 						break;
 					}
 				}
+				//TODO remove debug lines
+				if (!found) panic("Page is not in disk!!!!!\n");
+				//finish debug
+//				cprintf("found in disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+				if (proc->pages.memory.count == MAX_PSYC_PAGES){
+					emptySlotMemory = moveToDisk(proc->pgdir);
+				}
+				else {
+					for (emptySlotMemory = 0; emptySlotMemory < MAX_PSYC_PAGES; emptySlotMemory++){
+						if (proc->pages.memory.pageTables[emptySlotMemory].used == PAGE_UNUSED){
+							proc->pages.memory.pageTables[emptySlotMemory].used = PAGE_USED;
+							proc->pages.memory.count++;
+							break;
+						}
+					}
+				}
+				retrievedPageMem = kalloc();
+				if(retrievedPageMem == 0){
+					cprintf("allocuvm out of memory\n");
+					return;
+				}
+				readFromSwapFile(proc,retrievedPageMem,diskPageIdx*PGSIZE,PGSIZE);
+				mappages(proc->pgdir, (char*) pageToRetrieve, PGSIZE, v2p(retrievedPageMem), PTE_W|PTE_U);
+				//proc->pages.memory.count++;
+				proc->pages.disk.count--;
+				proc->pages.disk.pageTables[diskPageIdx].used = PAGE_UNUSED;
+				proc->pages.memory.pageTables[emptySlotMemory].virtualAddress = pageToRetrieve;
 			}
-			retrievedPageMem = kalloc();
-			if(retrievedPageMem == 0){
-				cprintf("allocuvm out of memory\n");
-				return;
+			else{
+				*pageToRetrieve_pte = *pageToRetrieve_pte | PTE_P;
 			}
-			readFromSwapFile(proc,retrievedPageMem,diskPageIdx*PGSIZE,PGSIZE);
-			mappages(proc->pgdir, (char*) pageToRetrieve, PGSIZE, v2p(retrievedPageMem), PTE_W|PTE_U);
-			//proc->pages.memory.count++;
-			proc->pages.disk.count--;
-			proc->pages.disk.pageTables[diskPageIdx].used = PAGE_UNUSED;
-			proc->pages.memory.pageTables[emptySlotMemory].virtualAddress = pageToRetrieve;
-		}
-		else{
-			*pageToRetrieve_pte = *pageToRetrieve_pte | PTE_P;
-		}
-		break;
+			break;
 	default:
 		if(proc == 0 || (tf->cs&3) == 0){
 			// In kernel, it must be our mistake.
@@ -156,20 +165,20 @@ trap(struct trapframe *tf)
 				proc->pid, proc->name, tf->trapno, tf->err, cpu->id, tf->eip,
 				rcr2());
 		proc->killed = 1;
+		}
+
+		// Force process exit if it has been killed and is in user space.
+		// (If it is still executing in the kernel, let it keep running
+		// until it gets to the regular system call return.)
+		if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+			exit();
+
+		// Force process to give up CPU on clock tick.
+		// If interrupts were on while locks held, would need to check nlock.
+		if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
+			yield();
+
+		// Check if the process has been killed since we yielded
+		if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+			exit();
 	}
-
-	// Force process exit if it has been killed and is in user space.
-	// (If it is still executing in the kernel, let it keep running
-	// until it gets to the regular system call return.)
-	if(proc && proc->killed && (tf->cs&3) == DPL_USER)
-		exit();
-
-	// Force process to give up CPU on clock tick.
-	// If interrupts were on while locks held, would need to check nlock.
-	if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
-		yield();
-
-	// Check if the process has been killed since we yielded
-	if(proc && proc->killed && (tf->cs&3) == DPL_USER)
-		exit();
-}

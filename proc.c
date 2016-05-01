@@ -8,12 +8,15 @@
 #include "spinlock.h"
 #include "fs.h"
 int print_var2 = 0;
-#define PRINT {print_var2++; cprintf("#### %d\n", print_var2);}
-#define w(x)	{cprintf("name: %s\n", #x);}
-//#define w(x)	;
+//#define PRINT {print_var2++; cprintf("#### %d\n", print_var2);}
+#define PRINT ;
+//#define w(x)	{cprintf("name: %s\n", #x);}
+#define w(x)	;
 
-#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
-#define VALS(x) cprintf("%s = %s\n",#x ,x);
+//#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
+#define VALD(x)	;
+//#define VALS(x) cprintf("%s = %s\n",#x ,x);
+#define VALS(x)	;
 
 
 pte_t *
@@ -190,7 +193,7 @@ fork(void)
 	np->parent = proc;
 	*np->tf = *proc->tf;
 	createSwapFile(np);
-	cprintf("proc count!!!!!!!!!!!!!!!     %d\n", proc->pages.memory.count);
+	//cprintf("proc count!!!!!!!!!!!!!!!     %d\n", proc->pages.memory.count);
 	if (SELECTION != NONE){
 		if (proc != initproc && proc != 0 && strncmp("sh",proc->name,3) && proc->swapFile != 0) {
 			char buf[PGSIZE/2];
@@ -199,7 +202,7 @@ fork(void)
 				toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
 				writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
 			}
-			cprintf("proc pid = %d, proc name = %s proc swap = %p\n", proc->pid, proc->name, proc->swapFile);
+			//cprintf("proc pid = %d, proc name = %s proc swap = %p\n", proc->pid, proc->name, proc->swapFile);
 			np->pages = proc->pages;
 			np->swapFile->ip = proc->swapFile->ip;
 			np->swapFile->type = proc->swapFile->type;
@@ -217,7 +220,7 @@ fork(void)
 		if(proc->ofile[i])
 			np->ofile[i] = filedup(proc->ofile[i]);
 	np->cwd = idup(proc->cwd);
-	cprintf("parent name = %s\n", proc->name);
+	//cprintf("parent name = %s\n", proc->name);
 	safestrcpy(np->name, proc->name, sizeof(proc->name));
 
 	pid = np->pid;
@@ -339,7 +342,7 @@ wait(void)
 				if (SELECTION != NONE){
 					pages_info newPages;
 					p->pages = newPages;
-					cprintf("##############   %d\n", p->pages.memory.count);
+					//cprintf("##############   %d\n", p->pages.memory.count);
 				}
 				release(&ptable.lock);
 				if (SELECTION != NONE){
