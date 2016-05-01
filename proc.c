@@ -7,6 +7,13 @@
 #include "proc.h"
 #include "spinlock.h"
 #include "fs.h"
+int print_var2 = 0;
+#define PRINT {print_var2++; cprintf("#### %d\n", print_var2);}
+#define w(x)	{cprintf("name: %s\n", #x);}
+//#define w(x)	;
+
+#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
+#define VALS(x) cprintf("%s = %s\n",#x ,x);
 
 
 pte_t *
@@ -39,6 +46,7 @@ pinit(void)
 static struct proc*
 allocproc(void)
 {
+	w(allocproc)
 	struct proc *p;
 	char *sp;
 
@@ -52,8 +60,24 @@ allocproc(void)
 	found:
 	p->state = EMBRYO;
 	p->pid = nextpid++;
+	int i;
+	for (i = 0; i < MAX_PSYC_PAGES; i++){
+		p->pages.disk.pageTables[i].virtualAddress = 0;
+		p->pages.disk.pageTables[i].used = 0;
+		p->pages.disk.pageTables[i].age = 0;
+		p->pages.disk.pageTables[i].ctime = 0;
+		p->pages.memory.pageTables[i].virtualAddress = 0;
+		p->pages.memory.pageTables[i].used = 0;
+		p->pages.memory.pageTables[i].age = 0;
+		p->pages.memory.pageTables[i].ctime = 0;
+	}
+	p->pages.disk.count = 0;
+	p->pages.memory.count = 0;
+	p->pages.pageFaults = 0;
+	p->pages.totalPagedOut = 0;
+	p->pages.disk.lastEnterTime = 0;
+	p->pages.memory.lastEnterTime = 0;
 	release(&ptable.lock);
-
 	// Allocate kernel stack.
 	if((p->kstack = kalloc()) == 0){
 		p->state = UNUSED;
@@ -84,6 +108,7 @@ allocproc(void)
 void
 userinit(void)
 {
+		w(userinit)
 	calcKernelPages();
 	struct proc *p;
 	extern char _binary_initcode_start[], _binary_initcode_size[];
@@ -102,7 +127,6 @@ userinit(void)
 	p->tf->eflags = FL_IF;
 	p->tf->esp = PGSIZE;
 	p->tf->eip = 0;  // beginning of initcode.S
-
 	safestrcpy(p->name, "initcode", sizeof(p->name));
 	p->cwd = namei("/");
 	p->state = RUNNABLE;
@@ -114,11 +138,15 @@ int
 growproc(int n)
 {
 	uint sz;
-
+	w(growproc)
 	sz = proc->sz;
 	if(n > 0){
+		w(proc1)
 		if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+		{
+			VALD(sz)
 			return -1;
+		}
 	} else if(n < 0){
 		if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
 			return -1;
@@ -144,6 +172,7 @@ struct file {
 int
 fork(void)
 {
+		w(fork)
 	int i, pid;
 	struct proc *np;
 	// Allocate process.
@@ -159,27 +188,28 @@ fork(void)
 	}
 	np->sz = proc->sz;
 	np->parent = proc;
+	*np->tf = *proc->tf;
+	createSwapFile(np);
+	cprintf("proc count!!!!!!!!!!!!!!!     %d\n", proc->pages.memory.count);
 	if (SELECTION != NONE){
-		if (proc != initproc && proc != 0 && !strncmp("sh",proc->name,2) && proc->swapFile != 0) {
+		if (proc != initproc && proc != 0 && strncmp("sh",proc->name,3) && proc->swapFile != 0) {
+			char buf[PGSIZE/2];
+			int toRead;
+			for(i=0;i<30;i++){
+				toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
+				writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
+			}
+			cprintf("proc pid = %d, proc name = %s proc swap = %p\n", proc->pid, proc->name, proc->swapFile);
 			np->pages = proc->pages;
-			createSwapFile(np);
 			np->swapFile->ip = proc->swapFile->ip;
 			np->swapFile->type = proc->swapFile->type;
 			np->swapFile->off = proc->swapFile->off;
 			np->swapFile->readable = proc->swapFile->readable;
 			np->swapFile->writable = proc->swapFile->writable;
-			char buf[PGSIZE/2];
-			int toRead;
-			//	readFromSwapFile(proc, buf,0, PGSIZE*17);
-			//	writeToSwapFile(np, buf,0 , PGSIZE*17);
-			for(i=0;i<30;i++){
-				toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
-				writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
-			}
 		}
 	}
-	*np->tf = *proc->tf;
 
+	PRINT
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
@@ -187,6 +217,7 @@ fork(void)
 		if(proc->ofile[i])
 			np->ofile[i] = filedup(proc->ofile[i]);
 	np->cwd = idup(proc->cwd);
+	cprintf("parent name = %s\n", proc->name);
 	safestrcpy(np->name, proc->name, sizeof(proc->name));
 
 	pid = np->pid;
@@ -242,9 +273,24 @@ exit(void)
 	proc->state = ZOMBIE;
 	if (SELECTION != NONE){
 		if (proc != 0 && !strncmp("sh",proc->name,2)){
-			removeSwapFile(proc);
-			pages_info newPages;
-			proc->pages = newPages;
+			//removeSwapFile(proc);
+			int i;
+			for (i = 0; i < MAX_PSYC_PAGES; i++){
+				proc->pages.disk.pageTables[i].virtualAddress = 0;
+				proc->pages.disk.pageTables[i].used = 0;
+				proc->pages.disk.pageTables[i].age = 0;
+				proc->pages.disk.pageTables[i].ctime = 0;
+				proc->pages.memory.pageTables[i].virtualAddress = 0;
+				proc->pages.memory.pageTables[i].used = 0;
+				proc->pages.memory.pageTables[i].age = 0;
+				proc->pages.memory.pageTables[i].ctime = 0;
+			}
+			proc->pages.disk.count = 0;
+			proc->pages.memory.count = 0;
+			proc->pages.pageFaults = 0;
+			proc->pages.totalPagedOut = 0;
+			proc->pages.disk.lastEnterTime = 0;
+			proc->pages.memory.lastEnterTime = 0;
 			if(VERBOSE_PRINT == TRUE) {
 				static char *states[] = {
 						[UNUSED]    "unused",
@@ -293,6 +339,7 @@ wait(void)
 				if (SELECTION != NONE){
 					pages_info newPages;
 					p->pages = newPages;
+					cprintf("##############   %d\n", p->pages.memory.count);
 				}
 				release(&ptable.lock);
 				if (SELECTION != NONE){
@@ -323,6 +370,7 @@ wait(void)
 //      via swtch back to the scheduler.
 void
 updateAge (struct proc* p){
+	w(updateage)
 	int i;
 	pte_t * page;
 	for (i = 0; i < MAX_PSYC_PAGES; i++){
@@ -343,6 +391,7 @@ updateAge (struct proc* p){
 void
 scheduler(void)
 {
+	w(scheduler)
 	struct proc *p;
 
 	for(;;){
@@ -500,6 +549,7 @@ wakeup(void *chan)
 int
 kill(int pid)
 {
+	w(kill)
 	struct proc *p;
 
 	acquire(&ptable.lock);
@@ -524,6 +574,7 @@ kill(int pid)
 void
 procdump(void)
 {
+	w(procdump)
 	static char *states[] = {
 			[UNUSED]    "unused",
 			[EMBRYO]    "embryo",

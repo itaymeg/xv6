@@ -1,0 +1,258 @@
+console.c:      if(proc->killed){
+exec.c:      proc->pagesInFile[i] = 0;
+exec.c:      proc->existInOffset[i] = 0;
+exec.c:      proc->countPagesInRAM = 0;
+exec.c:      proc->existInRAM[i] = 0;
+exec.c:  safestrcpy(proc->name, last, sizeof(proc->name));
+exec.c:  oldpgdir = proc->pgdir;
+exec.c:  proc->pgdir = pgdir;
+exec.c:  proc->sz = sz;
+exec.c:  proc->tf->eip = elf.entry;  // main
+exec.c:  proc->tf->esp = sp;
+fs.c:    ip = idup(proc->cwd);
+mp.c:      if(ncpu != proc->apicid){
+mp.c:        cprintf("mpinit: ncpu=%d apicid=%d\n", ncpu, proc->apicid);
+mp.c:      if(proc->flags & MPBOOT)
+pipe.c:      if(p->readopen == 0 || proc->killed){
+pipe.c:    if(proc->killed){
+proc.c:  sz = proc->sz;
+proc.c:    if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+proc.c:    if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
+proc.c:  proc->sz = sz;
+proc.c:  if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+proc.c:  np->sz = proc->sz;
+proc.c:  *np->tf = *proc->tf;
+proc.c:  if(proc!=initproc && proc!=0 && !(strncmp("sh",proc->name,3) == 0) && proc->swapFile != 0){
+proc.c:    np->swapFile->ip = proc->swapFile->ip;
+proc.c:    np->swapFile->type = proc->swapFile->type;
+proc.c:    np->swapFile->off = proc->swapFile->off;
+proc.c:    np->swapFile->readable = proc->swapFile->readable;
+proc.c:    np->swapFile->writable =proc->swapFile->writable;
+proc.c:      np->pagesInFile[i] = proc->pagesInFile[i];
+proc.c:      np->existInOffset[i] = proc->existInOffset[i];
+proc.c:      np->countPagesInRAM = proc->countPagesInRAM;
+proc.c:      np->pagesInRAM[i].va =  proc->pagesInRAM[i].va; 
+proc.c:      np->pagesInRAM[i].aging =  proc->pagesInRAM[i].aging; 
+proc.c:      np->pagesInRAM[i].ctime =  proc->pagesInRAM[i].ctime; 
+proc.c:      np->existInRAM[i] = proc->existInRAM[i];
+proc.c:    np->numOfPageFaults=proc->numOfPageFaults;
+proc.c:    np->numOfPagedOut=proc->numOfPagedOut;
+proc.c:    if(proc->ofile[i])
+proc.c:      np->ofile[i] = filedup(proc->ofile[i]);
+proc.c:  np->cwd = idup(proc->cwd);
+proc.c:  safestrcpy(np->name, proc->name, sizeof(proc->name));
+proc.c:    if(proc->ofile[fd]){
+proc.c:      fileclose(proc->ofile[fd]);
+proc.c:      proc->ofile[fd] = 0;
+proc.c:  iput(proc->cwd);
+proc.c:  proc->cwd = 0;
+proc.c:  wakeup1(proc->parent);
+proc.c:  proc->state = ZOMBIE;
+proc.c:    if(!havekids || proc->killed){
+proc.c:      swtch(&cpu->scheduler, proc->context);
+proc.c:// and have changed proc->state.
+proc.c:  if(proc->state == RUNNING)
+proc.c:  swtch(&proc->context, cpu->scheduler);
+proc.c:  proc->state = RUNNABLE;
+proc.c:  proc->chan = chan;
+proc.c:  proc->state = SLEEPING;
+proc.c:  proc->chan = 0;
+proc.h:// Segments in proc->gdt.
+syscall.c:  if(addr >= proc->sz || addr+4 > proc->sz)
+syscall.c:  if(addr >= proc->sz)
+syscall.c:  ep = (char*)proc->sz;
+syscall.c:  return fetchint(proc->tf->esp + 4 + 4*n, ip);
+syscall.c:  if((uint)i >= proc->sz || (uint)i+size > proc->sz)
+syscall.c:  num = proc->tf->eax;
+syscall.c:    proc->tf->eax = syscalls[num]();
+syscall.c:            proc->pid, proc->name, num);
+syscall.c:    proc->tf->eax = -1;
+sysfile.c:  if(fd < 0 || fd >= NOFILE || (f=proc->ofile[fd]) == 0)
+sysfile.c:    if(proc->ofile[fd] == 0){
+sysfile.c:      proc->ofile[fd] = f;
+sysfile.c:  proc->ofile[fd] = 0;
+sysfile.c:  iput(proc->cwd);
+sysfile.c:  proc->cwd = ip;
+sysfile.c:      proc->ofile[fd0] = 0;
+sysproc.c:  return proc->pid;
+sysproc.c:  addr = proc->sz;
+sysproc.c:    if(proc->killed){
+trap.c:    if(proc->killed)
+trap.c:    proc->tf = tf;
+trap.c:    if(proc->killed)
+trap.c:	if(proc->existInRAM[j]!=0)
+trap.c:	  pte = walkpgdir(proc->pgdir,proc->pagesInRAM[j].va,0);
+trap.c:	  proc->pagesInRAM[i].aging = (proc->pagesInRAM[i].aging)>>1;
+trap.c:	    proc->pagesInRAM[i].aging = proc->pagesInRAM[i].aging +128;
+trap.c:    proc->numOfPageFaults++;
+trap.c:    pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
+trap.c:	  if(proc->pagesInFile[i]==pageToSwap)
+trap.c:	if(proc->countPagesInRAM == 15){
+trap.c:	  swap(proc->pgdir);
+trap.c:	proc->countPagesInRAM = proc->countPagesInRAM+1;
+trap.c:	mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
+trap.c:	  if(proc->existInRAM[i]==0)
+trap.c:	proc->existInRAM[i]=1;
+trap.c:	proc->pagesInRAM[i].va = (char*)pageToSwap;
+trap.c:	proc->pagesInRAM[i].ctime = time;
+trap.c:            proc->pid, proc->name, tf->trapno, tf->err, cpu->id, tf->eip, 
+trap.c:    proc->killed = 1;
+trap.c:  if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+trap.c:  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
+trap.c:  if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+type:console.c:      if(proc->killed){
+type:exec.c:      proc->pagesInFile[i] = 0;
+type:exec.c:      proc->existInOffset[i] = 0;
+type:exec.c:      proc->countPagesInRAM = 0;
+type:exec.c:      proc->existInRAM[i] = 0;
+type:exec.c:  safestrcpy(proc->name, last, sizeof(proc->name));
+type:exec.c:  oldpgdir = proc->pgdir;
+type:exec.c:  proc->pgdir = pgdir;
+type:exec.c:  proc->sz = sz;
+type:exec.c:  proc->tf->eip = elf.entry;  // main
+type:exec.c:  proc->tf->esp = sp;
+type:fs.c:    ip = idup(proc->cwd);
+type:mp.c:      if(ncpu != proc->apicid){
+type:mp.c:        cprintf("mpinit: ncpu=%d apicid=%d\n", ncpu, proc->apicid);
+type:mp.c:      if(proc->flags & MPBOOT)
+type:pipe.c:      if(p->readopen == 0 || proc->killed){
+type:pipe.c:    if(proc->killed){
+type:proc.c:  sz = proc->sz;
+type:proc.c:    if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+type:proc.c:    if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
+type:proc.c:  proc->sz = sz;
+type:proc.c:  if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+type:proc.c:  np->sz = proc->sz;
+type:proc.c:  *np->tf = *proc->tf;
+type:proc.c:  if(proc!=initproc && proc!=0 && !(strncmp("sh",proc->name,3) == 0) && proc->swapFile != 0){
+type:proc.c:    np->swapFile->ip = proc->swapFile->ip;
+type:proc.c:    np->swapFile->type = proc->swapFile->type;
+type:proc.c:    np->swapFile->off = proc->swapFile->off;
+type:proc.c:    np->swapFile->readable = proc->swapFile->readable;
+type:proc.c:    np->swapFile->writable =proc->swapFile->writable;
+type:proc.c:      np->pagesInFile[i] = proc->pagesInFile[i];
+type:proc.c:      np->existInOffset[i] = proc->existInOffset[i];
+type:proc.c:      np->countPagesInRAM = proc->countPagesInRAM;
+type:proc.c:      np->pagesInRAM[i].va =  proc->pagesInRAM[i].va; 
+type:proc.c:      np->pagesInRAM[i].aging =  proc->pagesInRAM[i].aging; 
+type:proc.c:      np->pagesInRAM[i].ctime =  proc->pagesInRAM[i].ctime; 
+type:proc.c:      np->existInRAM[i] = proc->existInRAM[i];
+type:proc.c:    if(proc->ofile[i])
+type:proc.c:      np->ofile[i] = filedup(proc->ofile[i]);
+type:proc.c:  np->cwd = idup(proc->cwd);
+type:proc.c:  safestrcpy(np->name, proc->name, sizeof(proc->name));
+type:proc.c:    if(proc->ofile[fd]){
+type:proc.c:      fileclose(proc->ofile[fd]);
+type:proc.c:      proc->ofile[fd] = 0;
+type:proc.c:  iput(proc->cwd);
+type:proc.c:  proc->cwd = 0;
+type:proc.c:  wakeup1(proc->parent);
+type:proc.c:  proc->state = ZOMBIE;
+type:proc.c:    if(!havekids || proc->killed){
+type:proc.c:      swtch(&cpu->scheduler, proc->context);
+type:proc.c:// and have changed proc->state.
+type:proc.c:  if(proc->state == RUNNING)
+type:proc.c:  swtch(&proc->context, cpu->scheduler);
+type:proc.c:  proc->state = RUNNABLE;
+type:proc.c:  proc->chan = chan;
+type:proc.c:  proc->state = SLEEPING;
+type:proc.c:  proc->chan = 0;
+type:proc.h:// Segments in proc->gdt.
+type:syscall.c:  if(addr >= proc->sz || addr+4 > proc->sz)
+type:syscall.c:  if(addr >= proc->sz)
+type:syscall.c:  ep = (char*)proc->sz;
+type:syscall.c:  return fetchint(proc->tf->esp + 4 + 4*n, ip);
+type:syscall.c:  if((uint)i >= proc->sz || (uint)i+size > proc->sz)
+type:syscall.c:  num = proc->tf->eax;
+type:syscall.c:    proc->tf->eax = syscalls[num]();
+type:syscall.c:            proc->pid, proc->name, num);
+type:syscall.c:    proc->tf->eax = -1;
+type:sysfile.c:  if(fd < 0 || fd >= NOFILE || (f=proc->ofile[fd]) == 0)
+type:sysfile.c:    if(proc->ofile[fd] == 0){
+type:sysfile.c:      proc->ofile[fd] = f;
+type:sysfile.c:  proc->ofile[fd] = 0;
+type:sysfile.c:  iput(proc->cwd);
+type:sysfile.c:  proc->cwd = ip;
+type:sysfile.c:      proc->ofile[fd0] = 0;
+type:sysproc.c:  return proc->pid;
+type:sysproc.c:  addr = proc->sz;
+type:sysproc.c:    if(proc->killed){
+type:trap.c:    if(proc->killed)
+type:trap.c:    proc->tf = tf;
+type:trap.c:    if(proc->killed)
+type:trap.c:	if(proc->existInRAM[j]!=0)
+type:trap.c:	  pte = walkpgdir(proc->pgdir,proc->pagesInRAM[j].va,0);
+type:trap.c:	  proc->pagesInRAM[i].aging = (proc->pagesInRAM[i].aging)>>1;
+type:trap.c:	    proc->pagesInRAM[i].aging = proc->pagesInRAM[i].aging +128;
+type:trap.c:    pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
+type:trap.c:	  if(proc->pagesInFile[i]==pageToSwap)
+type:trap.c:	if(proc->countPagesInRAM == 15){
+type:trap.c:	  swap(proc->pgdir);
+type:trap.c:	proc->countPagesInRAM = proc->countPagesInRAM+1;
+type:trap.c:	mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
+type:trap.c:	  if(proc->existInRAM[i]==0)
+type:trap.c:	proc->existInRAM[i]=1;
+type:trap.c:	proc->pagesInRAM[i].va = (char*)pageToSwap;
+type:trap.c:	proc->pagesInRAM[i].ctime = time;
+type:trap.c:            proc->pid, proc->name, tf->trapno, tf->err, cpu->id, tf->eip, 
+type:trap.c:    proc->killed = 1;
+type:trap.c:  if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+type:trap.c:  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER)
+type:trap.c:  if(proc && proc->killed && (tf->cs&3) == DPL_USER)
+type:vm.c:  cpu->ts.esp0 = (uint)proc->kstack + KSTACKSIZE;
+type:vm.c:      if(proc->existInRAM[i]==0)
+type:vm.c:      if(minctime> proc->pagesInRAM[i].ctime){
+type:vm.c:	minctime = proc->pagesInRAM[i].ctime;
+type:vm.c:    return proc->pagesInRAM[minProc].va;
+type:vm.c:	if(proc->existInRAM[i]==0)
+type:vm.c:	if(minctime> proc->pagesInRAM[i].ctime){
+type:vm.c:	  minctime = proc->pagesInRAM[i].ctime;
+type:vm.c:      pte = walkpgdir(proc->pgdir,proc->pagesInRAM[minProc].va,0);
+type:vm.c:	return proc->pagesInRAM[minProc].va;
+type:vm.c:      if(proc->existInRAM[i]==0)
+type:vm.c:      if(minAging> proc->pagesInRAM[i].aging){
+type:vm.c:	minAging = proc->pagesInRAM[i].aging;
+type:vm.c:    return proc->pagesInRAM[minProc].va;
+type:vm.c:    if(proc->existInOffset[i]==0)
+type:vm.c:    if(proc->pagesInRAM[j].va== pageToSwap)
+type:vm.c:      proc->existInRAM[j]=0;
+type:vm.c:  proc->existInOffset[i]=1;   
+type:vm.c:  proc->countPagesInRAM = proc->countPagesInRAM-1;
+type:vm.c:  proc->pagesInFile[i] = pageToSwap;
+type:vm.c:    if(proc->countPagesInRAM == 15 && !(strncmp("sh",proc->name,3) == 0) && !(strncmp("init",proc->name,5) == 0)){
+type:vm.c:    proc->countPagesInRAM = proc->countPagesInRAM+1;
+type:vm.c:      if(proc->existInRAM[i]==0)
+type:vm.c:    proc->existInRAM[i]=1;
+type:vm.c:    proc->pagesInRAM[i].va = (char*)a;
+type:vm.c:    proc->pagesInRAM[i].ctime = time;
+type:vm.c:      proc->countPagesInRAM = proc->countPagesInRAM-1;
+vm.c:  cpu->ts.esp0 = (uint)proc->kstack + KSTACKSIZE;
+vm.c:      if(proc->existInRAM[i]==0)
+vm.c:      if(minctime> proc->pagesInRAM[i].ctime){
+vm.c:	minctime = proc->pagesInRAM[i].ctime;
+vm.c:    return proc->pagesInRAM[minProc].va;
+vm.c:	if(proc->existInRAM[i]==0)
+vm.c:	if(minctime> proc->pagesInRAM[i].ctime){
+vm.c:	  minctime = proc->pagesInRAM[i].ctime;
+vm.c:      pte = walkpgdir(proc->pgdir,proc->pagesInRAM[minProc].va,0);
+vm.c:	return proc->pagesInRAM[minProc].va;
+vm.c:      if(proc->existInRAM[i]==0)
+vm.c:      if(minAging> proc->pagesInRAM[i].aging){
+vm.c:	minAging = proc->pagesInRAM[i].aging;
+vm.c:    return proc->pagesInRAM[minProc].va;
+vm.c:    if(proc->existInOffset[i]==0)
+vm.c:    if(proc->pagesInRAM[j].va== pageToSwap)
+vm.c:      proc->existInRAM[j]=0;
+vm.c:  proc->existInOffset[i]=1;   
+vm.c:  proc->countPagesInRAM = proc->countPagesInRAM-1;
+vm.c:  proc->pagesInFile[i] = pageToSwap;
+vm.c:    cprintf("proc->countPagesInRAM = %d \n",proc->countPagesInRAM); 
+vm.c:    if(proc->countPagesInRAM == 15 && (!(strncmp("sh",proc->name,3) == 0)) && (!(strncmp("init",proc->name,5) == 0))){
+vm.c:    proc->countPagesInRAM = proc->countPagesInRAM+1;
+vm.c:      if(proc->existInRAM[i]==0)
+vm.c:    proc->existInRAM[i]=1;
+vm.c:    proc->pagesInRAM[i].va = (char*)a;
+vm.c:    proc->pagesInRAM[i].ctime = time;
+vm.c:	if(proc->pagesInRAM[i].va==v)
+vm.c:      proc->countPagesInRAM = proc->countPagesInRAM-1;
+vm.c:      proc->existInRAM[i]=0;

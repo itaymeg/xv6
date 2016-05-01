@@ -7,6 +7,12 @@
 #include "proc.h"
 #include "elf.h"
 
+#define VALD(x) cprintf("%s = %d\n" ,#x ,x);
+#define VALS(x) cprintf("%s = %s\n",#x ,x);
+
+#define w(x)	{cprintf("name: %s\n", #x);}
+//#define w(x)	;
+
 extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 struct segdesc gdt[NSEGS];
@@ -182,7 +188,8 @@ switchuvm(struct proc *p)
 void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
-	char *mem;
+	w(inituvm)
+			char *mem;
 
 	if(sz >= PGSIZE)
 		panic("inituvm: more than a page");
@@ -197,7 +204,8 @@ inituvm(pde_t *pgdir, char *init, uint sz)
 int
 loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 {
-	uint i, pa, n;
+	w(loaduvm)
+			uint i, pa, n;
 	pte_t *pte;
 
 	if((uint) addr % PGSIZE != 0)
@@ -217,7 +225,8 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 
 uint moveToDisk(pde_t *pgdir){
-	int pageToMoveIdx;
+	w(movetodisk)
+			int pageToMoveIdx;
 	int j;
 	int k;
 	pte_t *pageToMove_pte;
@@ -289,7 +298,8 @@ uint moveToDisk(pde_t *pgdir){
 	proc->pages.memory.count--;
 	proc->pages.disk.count++;
 	proc->pages.totalPagedOut++;
-	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = PGROUNDDOWN(pageToMove);
+	//	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = PGROUNDDOWN(pageToMove);
+	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = pageToMove;
 	return pageToMoveIdx; //index for empty page slot
 }
 
@@ -298,9 +308,10 @@ uint moveToDisk(pde_t *pgdir){
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-	char *mem;
+	w(allocuvm)
+			char *mem;
 	uint a;
-	uint freePageIdx;
+	uint freePageIdx = 0;
 
 	if(newsz >= KERNBASE)
 		return 0;
@@ -308,14 +319,23 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 		return oldsz;
 
 	a = PGROUNDUP(oldsz);
-	int isShellOrInit = strncmp("sh",proc->name,2) || strncmp("init",proc->name,3);
+	int notShellOrInit = strncmp("sh",proc->name,2) && strncmp("init",proc->name,3);
 	for(; a < newsz; a += PGSIZE){
 		if (SELECTION != NONE){
-			if(proc->pages.memory.count == 15 && !isShellOrInit){
+			if(proc->pages.memory.count == 15 && notShellOrInit){
 				freePageIdx = moveToDisk(pgdir);
 			}
+			else{
+				for (freePageIdx = 0; freePageIdx < MAX_PSYC_PAGES; freePageIdx++){
+					if (proc->pages.memory.pageTables[freePageIdx].used == PAGE_UNUSED){
+						break;
+					}
+				}
+			}
 		}
+		w(bkalloc)
 		mem = kalloc();
+		w(akalloc)
 		if(mem == 0){
 			cprintf("allocuvm out of memory\n");
 			deallocuvm(pgdir, newsz, oldsz);
@@ -325,13 +345,23 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 		mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
 		if (SELECTION != NONE){
 			proc->pages.memory.pageTables[freePageIdx].used = PAGE_USED;
+			w(here1)
 			int t = ticks;
-			proc->pages.memory.pageTables[freePageIdx].ctime = t;
-			proc->pages.memory.lastEnterTime = t;
+			w(here2)
 			proc->pages.memory.count++;
+			w(here3)
+			proc->pages.memory.pageTables[freePageIdx].ctime = t;
+			w(here4)
+			proc->pages.memory.lastEnterTime = t;
+			w(here5)
+			VALD(a)
 			proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
+			w(here6)
 		}
 	}
+	w(bnewsize)
+	VALD(newsz)
+	w(anewsize)
 	return newsz;
 }
 
@@ -342,7 +372,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 int
 deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-	pte_t *pte;
+	w(deallocuvm)
+			pte_t *pte;
 	uint a, pa;
 
 	if(newsz >= oldsz)
@@ -360,7 +391,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 			char *v = p2v(pa);
 			kfree(v);
 			if (SELECTION != NONE){
-				proc->pages.memory.count--;
+//				proc->pages.memory.count--;
 			}
 			*pte = 0;
 		}
@@ -373,7 +404,8 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 void
 freevm(pde_t *pgdir)
 {
-	uint i;
+	w(freevm)
+			uint i;
 
 	if(pgdir == 0)
 		panic("freevm: no pgdir");
@@ -392,7 +424,8 @@ freevm(pde_t *pgdir)
 void
 clearpteu(pde_t *pgdir, char *uva)
 {
-	pte_t *pte;
+	w(clearpteu)
+			pte_t *pte;
 
 	pte = walkpgdir(pgdir, uva, 0);
 	if(pte == 0)
@@ -405,7 +438,8 @@ clearpteu(pde_t *pgdir, char *uva)
 pde_t*
 copyuvm(pde_t *pgdir, uint sz)
 {
-	pde_t *d;
+	w(copyuvm)
+			pde_t *d;
 	pte_t *pte;
 	uint pa, i, flags;
 	char *mem;
@@ -437,7 +471,8 @@ copyuvm(pde_t *pgdir, uint sz)
 char*
 uva2ka(pde_t *pgdir, char *uva)
 {
-	pte_t *pte;
+	w(uva2ka)
+			pte_t *pte;
 
 	pte = walkpgdir(pgdir, uva, 0);
 	if((*pte & PTE_P) == 0)
@@ -453,7 +488,8 @@ uva2ka(pde_t *pgdir, char *uva)
 int
 copyout(pde_t *pgdir, uint va, void *p, uint len)
 {
-	char *buf, *pa0;
+	w(copyout)
+			char *buf, *pa0;
 	uint n, va0;
 
 	buf = (char*)p;

@@ -143,6 +143,8 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_PGFLT:
+
+    cprintf("page fault\n");
     proc->numOfPageFaults++;
    cprintf("------------ trap: T_PGFLT ----------------\n");
     pageToSwap = (char*)PGROUNDDOWN(rcr2());
