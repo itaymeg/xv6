@@ -245,6 +245,7 @@ uint moveToDisk(pde_t *pgdir){
 				pageToMoveIdx = k;
 			}
 		}
+		cprintf("pgae to move idx      %d\n", pageToMoveIdx);
 		break;
 	case SCFIFO:
 		pageToMoveIdx = -1;
@@ -263,6 +264,7 @@ uint moveToDisk(pde_t *pgdir){
 				else pageToMoveIdx = k;
 			}
 		}
+		cprintf("pgae to move idx      %d\n", pageToMoveIdx);
 		break;
 	case NFU:
 		pageToMoveIdx = -1;
@@ -275,6 +277,7 @@ uint moveToDisk(pde_t *pgdir){
 				pageToMoveIdx = k;
 			}
 		}
+		cprintf("pgae to move idx      %d\n", pageToMoveIdx);
 		break;
 	default:
 		break;

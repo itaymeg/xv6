@@ -9,7 +9,7 @@
 #include "memlayout.h"
 
 #define PGSIZE 4096
-#define LOOP 20
+#define LOOP 27
 
 char* m1[LOOP];
 
@@ -18,18 +18,15 @@ main(int argc, char *argv[])
 {
 
 	int i,j;
-	int pid;
+//	int pid;
 	//creating 'COUNT' pages
 	for (i = 0; i < LOOP ; ++i)
 	{
-		if (i% 5 == 0){
-			if ((pid = fork()) == 0) break;
-		}
+//		if (i% 2 == 0){
+//			if ((pid = fork()) == 0) break;
+//		}
 		m1[i] = sbrk(PGSIZE);
 		printf(1, "allocated page #%x at address: %x\n", i, m1[i]);
-	}
-	if (pid != 0){
-		for (i=0; i < 4; i++) wait();
 	}
 
 

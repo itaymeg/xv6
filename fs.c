@@ -677,7 +677,7 @@ int
 removeSwapFile(struct proc* p)
 {
 	//path of proccess
-	cprintf("remove\n");
+	//cprintf("remove\n");
 	char path[DIGITS];
 	memmove(path,"/.swap", 6);
 	itoa(p->pid, path+ 6);
@@ -746,7 +746,7 @@ removeSwapFile(struct proc* p)
 int
 createSwapFile(struct proc* p)
 {
-	cprintf("create\n");
+	//cprintf("create\n");
 	char path[DIGITS];
 	memmove(path,"/.swap", 6);
 	itoa(p->pid, path+ 6);
@@ -773,7 +773,7 @@ createSwapFile(struct proc* p)
 int
 writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
-	cprintf("write\n");
+	//cprintf("write\n");
 	p->swapFile->off = placeOnFile;
 
 	return filewrite(p->swapFile, buffer, size);
@@ -784,7 +784,7 @@ writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 int
 readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
-	cprintf("read\n");
+//	cprintf("read\n");
 	p->swapFile->off = placeOnFile;
 	//cprintf("proc pid = %d\n", proc->pid);
 	return fileread(p->swapFile, buffer,  size);

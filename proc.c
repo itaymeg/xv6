@@ -50,7 +50,7 @@ static struct proc*
 allocproc(void)
 {
 	w(allocproc)
-	struct proc *p;
+									struct proc *p;
 	char *sp;
 
 	acquire(&ptable.lock);
@@ -111,8 +111,8 @@ allocproc(void)
 void
 userinit(void)
 {
-		w(userinit)
-	calcKernelPages();
+	w(userinit)
+									calcKernelPages();
 	struct proc *p;
 	extern char _binary_initcode_start[], _binary_initcode_size[];
 
@@ -145,11 +145,11 @@ growproc(int n)
 	sz = proc->sz;
 	if(n > 0){
 		w(proc1)
-		if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
-		{
-			VALD(sz)
-			return -1;
-		}
+										if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+										{
+											VALD(sz)
+											return -1;
+										}
 	} else if(n < 0){
 		if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
 			return -1;
@@ -175,8 +175,8 @@ struct file {
 int
 fork(void)
 {
-		w(fork)
-	int i, pid;
+	w(fork)
+									int i, pid;
 	struct proc *np;
 	// Allocate process.
 	if((np = allocproc()) == 0)
@@ -383,30 +383,29 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-void
-updateAge (struct proc* p){
-	w(updateage)
-	int i;
-	pte_t * page;
-	for (i = 0; i < MAX_PSYC_PAGES; i++){
-		if (p->pages.memory.pageTables[i].used == PAGE_USED){
-			page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
-			if (*page & PTE_A){	//check if reference bit is on
-				*page = *page & ~PTE_A;		//turn reference off
-				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
-				p->pages.memory.pageTables[i].age += GROW;
-			}
-			else{
-				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
-			}
-		}
-	}
-}
+//void
+//updateAge (struct proc* p){
+//	int i;
+//	pte_t * page;
+//	cprintf("GROW %x\n", GROW);
+//	for (i = 0; i < MAX_PSYC_PAGES; i++){
+//		if (p->pages.memory.pageTables[i].used == PAGE_USED){
+//			page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
+//			if (*page & PTE_A){	//check if reference bit is on
+//				*page = *page & ~PTE_A;		//turn reference off
+//				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
+//				p->pages.memory.pageTables[i].age += GROW;
+//			}
+//			else{
+//				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
+//			}
+//		}
+//	}
+//}
 
 void
 scheduler(void)
 {
-	w(scheduler)
 	struct proc *p;
 
 	for(;;){
@@ -416,12 +415,28 @@ scheduler(void)
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
 		if (SELECTION != NONE){
-			int isShellOrInit = strncmp("sh",p->name,2) || strncmp("init",p->name,3);
+			int notShellOrInit = strncmp("sh",proc->name,2) && strncmp("init",proc->name,3);
 			int isUnusedOrEmbryo;
 			for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 				isUnusedOrEmbryo = (p->state == EMBRYO) || (p->state == UNUSED);
-				if (!(isShellOrInit || isUnusedOrEmbryo)){
-					updateAge(p);
+				if (notShellOrInit && !isUnusedOrEmbryo){
+					//updateAge(p);
+					int i;
+					pte_t * page;
+					cprintf("GROW %x\n", GROW);
+					for (i = 0; i < MAX_PSYC_PAGES; i++){
+						if (p->pages.memory.pageTables[i].used == PAGE_USED){
+							page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
+							if (*page & PTE_A){	//check if reference bit is on
+								*page = *page & ~PTE_A;		//turn reference off
+								p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
+								p->pages.memory.pageTables[i].age += GROW;
+							}
+							else{
+								p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
+							}
+						}
+					}
 				}
 			}
 		}
@@ -565,7 +580,7 @@ int
 kill(int pid)
 {
 	w(kill)
-	struct proc *p;
+									struct proc *p;
 
 	acquire(&ptable.lock);
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -590,13 +605,13 @@ void
 procdump(void)
 {
 	w(procdump)
-	static char *states[] = {
-			[UNUSED]    "unused",
-			[EMBRYO]    "embryo",
-			[SLEEPING]  "sleep ",
-			[RUNNABLE]  "runble",
-			[RUNNING]   "run   ",
-			[ZOMBIE]    "zombie"
+									static char *states[] = {
+											[UNUSED]    "unused",
+											[EMBRYO]    "embryo",
+											[SLEEPING]  "sleep ",
+											[RUNNABLE]  "runble",
+											[RUNNING]   "run   ",
+											[ZOMBIE]    "zombie"
 	};
 	int i;
 	struct proc *p;
