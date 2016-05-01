@@ -283,7 +283,7 @@ wait(void)
       if(p->state == ZOMBIE){
         // Found one.
 	if(VERBOSE_PRINT==TRUE){
-	  cprintf("<percentage>%\n");
+	  cprintf("fault  %d   out  %d\n", p->numOfPageFaults, p->numOfPagedOut);
 	}
 	ptemp.swapFile= p->swapFile;
         pid = p->pid;

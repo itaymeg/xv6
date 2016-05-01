@@ -305,6 +305,7 @@ exit(void)
 				};
 				cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
 			}
+
 		}
 	}
 
@@ -329,6 +330,17 @@ wait(void)
 				continue;
 			havekids = 1;
 			if(p->state == ZOMBIE){
+				if(VERBOSE_PRINT == TRUE) {
+					static char *states[] = {
+							[UNUSED]    "unused",
+							[EMBRYO]    "embryo",
+							[SLEEPING]  "sleep ",
+							[RUNNABLE]  "runble",
+							[RUNNING]   "run   ",
+							[ZOMBIE]    "zombie"
+					};
+					cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+				}
 				// Found one.
 				pid = p->pid;
 				kfree(p->kstack);

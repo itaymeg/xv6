@@ -100,7 +100,7 @@ trap(struct trapframe *tf)
 	//PAGEBREAK: 13
 	case T_PGFLT:
 //		cprintf("number %d\n", proc->pages.memory.count);
-//		cprintf("add %x\n", rcr2());
+//		cprintf("page fault add %x\n", rcr2());
 //		if (rcr2() == 0xf000) {
 //			for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
 //				cprintf("add %d %d\n", diskPageIdx, proc->pages.disk.pageTables[diskPageIdx].virtualAddress);
@@ -147,6 +147,7 @@ trap(struct trapframe *tf)
 				proc->pages.disk.count--;
 				proc->pages.disk.pageTables[diskPageIdx].used = PAGE_UNUSED;
 				proc->pages.memory.pageTables[emptySlotMemory].virtualAddress = pageToRetrieve;
+				proc->pages.memory.lastEnterTime = ticks;
 			}
 			else{
 				*pageToRetrieve_pte = *pageToRetrieve_pte | PTE_P;

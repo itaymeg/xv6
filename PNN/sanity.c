@@ -9,41 +9,34 @@
 #include "memlayout.h"
 
 #define PGSIZE 4096
-#define COUNT 20
+#define LOOP 25
 
-char* m1[COUNT];
+char* m1[LOOP];
 
 volatile int
 main(int argc, char *argv[])
 {
 
-  int i,j,k;
+int i,j;
 
-  //creating 'COUNT' pages
-  for (i = 0; i < COUNT ; ++i)
-  {
-    k=0;
-  m1[i] = sbrk(PGSIZE);
+//creating 'COUNT' pages
+for (i = 0; i < LOOP ; ++i)
+{
+m1[i] = sbrk(PGSIZE);
+printf(1, "allocated page #%d at address: %x\n", i, m1[i]);
+}
 
-  printf(1, "allocated page #%d at address: %x\n", i, m1[i]);
-  while(k<100000000)
-    k++;
-  printf(1,"continue\n");
-  }
+//using all pages
+for ( i = 0; i < LOOP; ++i)
+{
+for ( j = 0; j < PGSIZE; ++j)
+{
+m1[i][j] = 0;
+}
+}
 
-  printf(1,"Finished allocating pages\n");
-  //using all pages
-  for ( i = 0; i < COUNT; ++i)
-  {
-    for ( j = 0; j < PGSIZE; ++j)
-    {
-    m1[i][j] = 0;
-    }
-  }
+printf(1,"Finished Successfuly!!!\n");
 
-  printf(1,"Finished Successfuly!!!\n");
-
-
-  exit();
-  return 0;
-} 
+exit();
+return 0;
+}
