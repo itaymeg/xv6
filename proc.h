@@ -70,6 +70,8 @@ typedef struct pages_data{
 typedef struct pages_info {
 	pages_data memory;
 	pages_data disk;
+	uint pageFaults;
+	uint totalPagedOut;
 } pages_info;
 
 

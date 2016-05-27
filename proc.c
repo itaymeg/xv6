@@ -240,6 +240,17 @@ exit(void)
 		removeSwapFile(proc);
 		pages_info newPages;
 		proc->pages = newPages;
+		if(VERBOSE_PRINT == TRUE) {
+			static char *states[] = {
+					[UNUSED]    "unused",
+					[EMBRYO]    "embryo",
+					[SLEEPING]  "sleep ",
+					[RUNNABLE]  "runble",
+					[RUNNING]   "run   ",
+					[ZOMBIE]    "zombie"
+			};
+			cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+		}
 	}
 
 	sched();
@@ -520,7 +531,7 @@ procdump(void)
 			state = states[p->state];
 		else
 			state = "???";
-		cprintf("%d %s %s", p->pid, state, p->name);
+		cprintf("%d %s %d %d %d %d %s", p->pid, state, p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
 		//cprintf("%d %s %s, memory pages = %d, disk pages = %d", p->pid, state, p->name, p->pages.memory.count, p->pages.disk.count);
 		if(p->state == SLEEPING){
 			getcallerpcs((uint*)p->context->ebp+2, pc);
@@ -529,6 +540,7 @@ procdump(void)
 		}
 		cprintf("\n");
 	}
+	cprintf("%d\% free pages in the system" ,freePages);
 }
 
 //int
