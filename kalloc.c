@@ -72,6 +72,7 @@ kfree(char *v)
   r = (struct run*)v;
   r->next = kmem.freelist;
   kmem.freelist = r;
+  currentPages++;
   if(kmem.use_lock)
     release(&kmem.lock);
 }
@@ -91,6 +92,7 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
+  currentPages--;
   return (char*)r;
 }
 
