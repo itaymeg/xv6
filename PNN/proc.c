@@ -75,8 +75,6 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
   
-  
-  p->countPagesInRAM = 0;
   for(i=0;i<15;i++){
     p->existInOffset[i]=0;
    p->existInRAM[i]=0;
@@ -146,9 +144,9 @@ growproc(int n)
 int
 fork(void)
 {
-  int i, pid;
+  int i, pid,k;
   struct proc *np;
-  char buffer[PGSIZE/2];
+  char buffer[128];
   int countRead=0;
 
   // Allocate process.
@@ -166,17 +164,17 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
   
-// static int count=1;
-//    cprintf("%d\n",count);
-//    count++;
   createSwapFile(np);
-//   cprintf("%d\n",count);
-
-  if(proc!=initproc && proc!=0 && !(strncmp("sh",proc->name,3) == 0) && proc->swapFile != 0){
+/*
+cprintf("----------- before copy swap file\n");*/
+  if(proc!=0 && proc->swapFile != 0){
     for(i=0;i<30;i++){
-      countRead = readFromSwapFile(proc,buffer,i*PGSIZE/2,PGSIZE/2);
-      writeToSwapFile(np,buffer,i*PGSIZE/2,countRead);
+      for(k=0;k<PGSIZE;k+=128){
+	countRead = readFromSwapFile(proc,buffer,i*PGSIZE+k,128);
+	writeToSwapFile(np,buffer,i*PGSIZE+k,countRead);
+      }
     }
+//     cprintf("-------------- after copy swap file\n");
     np->swapFile->ip = proc->swapFile->ip;
     np->swapFile->type = proc->swapFile->type;
     np->swapFile->off = proc->swapFile->off;
@@ -187,7 +185,6 @@ fork(void)
       np->existInOffset[i] = proc->existInOffset[i];
     }
   }
-      np->countPagesInRAM = proc->countPagesInRAM;
     for(i=0;i<15;i++){
       np->pagesInRAM[i].va =  proc->pagesInRAM[i].va; 
       np->pagesInRAM[i].aging =  proc->pagesInRAM[i].aging; 
@@ -283,7 +280,7 @@ wait(void)
       if(p->state == ZOMBIE){
         // Found one.
 	if(VERBOSE_PRINT==TRUE){
-	  cprintf("fault  %d   out  %d\n", p->numOfPageFaults, p->numOfPagedOut);
+	  cprintf("<percentage>%\n");
 	}
 	ptemp.swapFile= p->swapFile;
         pid = p->pid;

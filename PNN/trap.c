@@ -85,7 +85,7 @@ void
 trap(struct trapframe *tf)
 {
    char* pageToSwap,*mem;
-   int i=0;
+   int i=0,countPagesInRAM=0;
    int j;
    pte_t* pte;
   if(tf->trapno == T_SYSCALL){
@@ -144,42 +144,45 @@ trap(struct trapframe *tf)
     break;
   case T_PGFLT:
 
-    cprintf("page fault\n");
-    proc->numOfPageFaults++;
-   cprintf("------------ trap: T_PGFLT ----------------\n");
-    pageToSwap = (char*)PGROUNDDOWN(rcr2());
-    pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
-    
-    if(!(*pte & PTE_P)){
-     // cprintf("------------ trap: T_PGFLT not present ------------\n");
-      if(*pte & PTE_PG){
-	//cprintf("------------ trap: T_PGFLT not present and pagedout----------------\n");
-	//cprintf("--------- trap: page found in rcr2 %x -------------\n",pageToSwap);
-	for(i=0;i<15;i++)
-	  if(proc->pagesInFile[i]==pageToSwap)
-	    break;
-
-	if(proc->countPagesInRAM == 15){
-	  swap(proc->pgdir);
+      proc->numOfPageFaults++;
+      pageToSwap = (char*)PGROUNDDOWN(rcr2());
+      pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
+      
+      if(!(*pte & PTE_P)){
+      // cprintf("------------ trap: T_PGFLT not present ------------\n");
+	if(*pte & PTE_PG){
+	  //cprintf("------------ trap: T_PGFLT not present and pagedout----------------\n");
+	  //cprintf("--------- trap: page found in rcr2 %x -------------\n",pageToSwap);
+	  for(i=0;i<15;i++)
+	    if(proc->pagesInFile[i]==pageToSwap)
+	      break;
+	    for(j=0;j<15;j++){
+	      if(proc->existInRAM[j]==1)
+		countPagesInRAM++;
+	    }
+	  
+	  if((countPagesInRAM == 15) && (SELECTION!=NONE)){
+	    swap(proc->pgdir);
+	  }
+	  mem = kalloc();
+	  if(mem == 0){
+	    cprintf("allocuvm out of memory\n");
+	    return;
+	  }
+	  proc->existInOffset[i]=0;
+	  readFromSwapFile(proc,mem,i*PGSIZE,PGSIZE);
+	  mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
+	  for(i=0;i<15;i++){
+	    if(proc->existInRAM[i]==0)
+	      break;
+	  }
+	  proc->existInRAM[i]=1;
+	  proc->pagesInRAM[i].va = (char*)pageToSwap;
+	  time++;
+	  proc->pagesInRAM[i].ctime = time;
 	}
-	proc->countPagesInRAM = proc->countPagesInRAM+1;
-	mem = kalloc();
-	if(mem == 0){
-	  cprintf("allocuvm out of memory\n");
-	  return;
-	}
-	readFromSwapFile(proc,mem,i*PGSIZE,PGSIZE);
-	mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
-	for(i=0;i<15;i++){
-	  if(proc->existInRAM[i]==0)
-	    break;
-	}
-	proc->existInRAM[i]=1;
-	proc->pagesInRAM[i].va = (char*)pageToSwap;
-	time++;
-	proc->pagesInRAM[i].ctime = time;
       }
-    }
+
     break;
     
   //PAGEBREAK: 13

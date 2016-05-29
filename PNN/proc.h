@@ -78,7 +78,6 @@ struct proc {
   
   char* pagesInFile[15];
   int existInOffset[15];
-  int countPagesInRAM;
   
  struct page pagesInRAM[15];
  int existInRAM[15];

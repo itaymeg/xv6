@@ -236,7 +236,7 @@ findPageToSwap(){
   }
   else if(SELECTION==SCFIFO){
     while(1){
-      for(i=0;i<15;i++){
+      for(i=3;i<15;i++){
 	if(proc->existInRAM[i]==0)
 	  continue;
 	if(minctime> proc->pagesInRAM[i].ctime){
@@ -256,11 +256,12 @@ findPageToSwap(){
     }
   }
   else if(SELECTION==NFU){
-    //cprintf("--------- findPageToSwap: choose page by NFU -------------\n");
+//     cprintf("--------- findPageToSwap: choose page by NFU -------------\n");
     for(i=0;i<15;i++){
       if(proc->existInRAM[i]==0)
 	continue;
       if(minAging> proc->pagesInRAM[i].aging){
+// 	 cprintf("--------- swapPage : page found i= %d va = %x -------------\n",i,proc->pagesInRAM[i].va);
 	minAging = proc->pagesInRAM[i].aging;
 	minProc = i;
       }
@@ -270,14 +271,13 @@ findPageToSwap(){
   
   return 0;
 }
-static int count = 0;
 
 void
 swap(pde_t *pgdir){
-  cprintf("--------- swap: start -------------\n");
+//   cprintf("--------- swap: start -------------\n");
   int i,j;
   char* pageToSwap = findPageToSwap();
-  cprintf("--------- swap: page found %x -------------\n",pageToSwap);
+//   cprintf("--------- swap: page found %x -------------\n",pageToSwap);
 
   pte_t *pte = walkpgdir(pgdir,pageToSwap,0);
   for(i=0;i<15;i++)
@@ -287,8 +287,9 @@ swap(pde_t *pgdir){
       //cprintf("--------- swap: empty offset in file  %d -------------\n",i);  
 
   for(j=0;j<15;j++){
-    if(proc->pagesInRAM[j].va== pageToSwap)
+    if(proc->pagesInRAM[j].va== pageToSwap){
       proc->existInRAM[j]=0;
+    }
   }
   proc->existInOffset[i]=1;   
   writeToSwapFile(proc,pageToSwap, i*PGSIZE,PGSIZE);   
@@ -296,7 +297,6 @@ swap(pde_t *pgdir){
 
     //cprintf("--------- swap: page has moved to file  -------------\n");
 
-  proc->countPagesInRAM = proc->countPagesInRAM-1;
   proc->pagesInFile[i] = pageToSwap;
   //kfree(pageToSwap);
   //cprintf("--------- swap: done  -------------\n"); 
@@ -310,7 +310,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
- int i;
+  int i,countPagesInRAM=0;
 
   if(newsz >= KERNBASE)
     return 0;
@@ -319,15 +319,16 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
-    cprintf("proc->countPagesInRAM = %d \n",proc->countPagesInRAM); 
-    if(proc->countPagesInRAM == 15 && (!(strncmp("sh",proc->name,3) == 0)) && (!(strncmp("init",proc->name,5) == 0))){
-      swap(pgdir);
-      
+    countPagesInRAM=0;
+    for(i=0;i<15;i++){
+      if(proc->existInRAM[i]==1)
+	countPagesInRAM++;
     }
-    proc->countPagesInRAM = proc->countPagesInRAM+1;
+ /*   cprintf("proc->countPagesInRAM = %d \n",countPagesInRAM);*/ 
+    if(countPagesInRAM == 15 && (!(strncmp("sh",proc->name,3) == 0)) && (!(strncmp("init",proc->name,5) == 0)) && (SELECTION!=NONE)){
+      swap(pgdir);
+    }
     mem = kalloc();
-    count++;
-    //cprintf("-------- allocuvm: count = %d---------------\n",count);
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
@@ -335,15 +336,14 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     }
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
-    //cprintf("-------- allocuvm: pgaddr = %x -------------\n",(char*)a);
-    for(i=0;i<15;i++){
-      if(proc->existInRAM[i]==0)
-	break;
-    }
-    proc->existInRAM[i]=1;
-    proc->pagesInRAM[i].va = (char*)a;
-    time++;
-    proc->pagesInRAM[i].ctime = time;
+      for(i=0;i<15;i++){
+	if(proc->existInRAM[i]==0)
+	  break;
+      }
+      proc->existInRAM[i]=1;
+      proc->pagesInRAM[i].va = (char*)a;
+      time++;
+      proc->pagesInRAM[i].ctime = time;
   }
   return newsz;
 }
@@ -374,13 +374,12 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(pa == 0)
         panic("kfree");
       char *v = p2v(pa);
-      for(i=0;i<15;i++){
-	if(proc->pagesInRAM[i].va==v)
-	  break;
-      }
+	for(i=0;i<15;i++){
+	  if(proc->pagesInRAM[i].va==v)
+	    break;
+	}
+	proc->existInRAM[i]=0;
       kfree(v);
-      proc->countPagesInRAM = proc->countPagesInRAM-1;
-      proc->existInRAM[i]=0;
       *pte = 0;
     }
   }
@@ -434,8 +433,8 @@ copyuvm(pde_t *pgdir, uint sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
+//     if(!(*pte & PTE_P))
+//       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)

@@ -20,15 +20,6 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
 
     createSwapFile(proc);
-
-    for(i=0;i<15;i++){
-      proc->pagesInFile[i] = 0;
-      proc->existInOffset[i] = 0;
-    }
-      proc->countPagesInRAM = 0;
-    for(i=0;i<15;i++){
-      proc->existInRAM[i] = 0;
-    }
   
   begin_op();
   if((ip = namei(path)) == 0){
@@ -38,6 +29,14 @@ exec(char *path, char **argv)
   ilock(ip);
   pgdir = 0;
 
+    for(i=0;i<15;i++){
+    proc->pagesInFile[i] = 0;
+    proc->existInOffset[i] = 0;
+  }
+  for(i=0;i<15;i++){
+    proc->existInRAM[i] = 0;
+  }
+  
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) < sizeof(elf))
     goto bad;
@@ -104,8 +103,6 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
-
-  
 
   switchuvm(proc);
   freevm(oldpgdir);
