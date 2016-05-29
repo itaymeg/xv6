@@ -542,8 +542,11 @@ procdump(void)
 			state = states[p->state];
 		else
 			state = "???";
-		cprintf("%d %s %d %d %d %d %s", p->pid, state, p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
-		//cprintf("%d %s %s, memory pages = %d, disk pages = %d", p->pid, state, p->name, p->pages.memory.count, p->pages.disk.count);
+		if(SELECTION == NONE) {
+			cprintf("%d %s %s" ,p->pid, state, p->name);
+		} else {
+			cprintf("%d %s %d %d %d %d %s", p->pid, state, p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+		}
 		if(p->state == SLEEPING){
 			getcallerpcs((uint*)p->context->ebp+2, pc);
 			for(i=0; i<10 && pc[i] != 0; i++)
