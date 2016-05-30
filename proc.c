@@ -50,7 +50,7 @@ static struct proc*
 allocproc(void)
 {
 	w(allocproc)
-									struct proc *p;
+													struct proc *p;
 	char *sp;
 
 	acquire(&ptable.lock);
@@ -112,7 +112,7 @@ void
 userinit(void)
 {
 	w(userinit)
-									calcKernelPages();
+													calcKernelPages();
 	struct proc *p;
 	extern char _binary_initcode_start[], _binary_initcode_size[];
 
@@ -145,11 +145,11 @@ growproc(int n)
 	sz = proc->sz;
 	if(n > 0){
 		w(proc1)
-										if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
-										{
-											VALD(sz)
-											return -1;
-										}
+														if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+														{
+															VALD(sz)
+															return -1;
+														}
 	} else if(n < 0){
 		if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
 			return -1;
@@ -176,7 +176,7 @@ int
 fork(void)
 {
 	w(fork)
-									int i, pid;
+													int i, pid;
 	struct proc *np;
 	// Allocate process.
 	if((np = allocproc()) == 0)
@@ -415,15 +415,17 @@ scheduler(void)
 		// Loop over process table looking for process to run.
 		acquire(&ptable.lock);
 		if (SELECTION != NONE){
-			int notShellOrInit = strncmp("sh",proc->name,2) && strncmp("init",proc->name,3);
-			int isUnusedOrEmbryo;
-			for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-				isUnusedOrEmbryo = (p->state == EMBRYO) || (p->state == UNUSED);
-				if (notShellOrInit && !isUnusedOrEmbryo){
+			//			if (proc != 0){
+//			int notShellOrInit;
+//			int isUnusedOrEmbryo;
+			for (p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+//				isUnusedOrEmbryo = (p->state == EMBRYO) || (p->state == UNUSED);
+//				notShellOrInit = strncmp("sh",p->name,2) && strncmp("init",p->name,3);
+//				if (notShellOrInit && !isUnusedOrEmbryo){
 					//updateAge(p);
 					int i;
 					pte_t * page;
-					cprintf("GROW %x\n", GROW);
+//					cprintf("GROW %x\n", GROW);
 					for (i = 0; i < MAX_PSYC_PAGES; i++){
 						if (p->pages.memory.pageTables[i].used == PAGE_USED){
 							page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
@@ -436,10 +438,11 @@ scheduler(void)
 								p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
 							}
 						}
-					}
+//					}
 				}
 			}
 		}
+
 
 		for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 			if(p->state != RUNNABLE)
@@ -580,7 +583,7 @@ int
 kill(int pid)
 {
 	w(kill)
-									struct proc *p;
+													struct proc *p;
 
 	acquire(&ptable.lock);
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -605,13 +608,13 @@ void
 procdump(void)
 {
 	w(procdump)
-									static char *states[] = {
-											[UNUSED]    "unused",
-											[EMBRYO]    "embryo",
-											[SLEEPING]  "sleep ",
-											[RUNNABLE]  "runble",
-											[RUNNING]   "run   ",
-											[ZOMBIE]    "zombie"
+													static char *states[] = {
+															[UNUSED]    "unused",
+															[EMBRYO]    "embryo",
+															[SLEEPING]  "sleep ",
+															[RUNNABLE]  "runble",
+															[RUNNING]   "run   ",
+															[ZOMBIE]    "zombie"
 	};
 	int i;
 	struct proc *p;
