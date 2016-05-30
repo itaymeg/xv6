@@ -191,7 +191,7 @@ void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
 	w(inituvm)
-			char *mem;
+																	char *mem;
 
 	if(sz >= PGSIZE)
 		panic("inituvm: more than a page");
@@ -207,7 +207,7 @@ int
 loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 {
 	w(loaduvm)
-			uint i, pa, n;
+																	uint i, pa, n;
 	pte_t *pte;
 
 	if((uint) addr % PGSIZE != 0)
@@ -227,12 +227,20 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 
 uint moveToDisk(pde_t *pgdir){
-	w(movetodisk)
 	int pageToMoveIdx;
 	int slotInDiskIdx;
 	int k;
 	pte_t *pageToMove_pte;
 	uint pageToMove;
+	int test;
+	//int maxIdx;
+	int stop = 0;
+	for(slotInDiskIdx = 0; slotInDiskIdx  < MAX_DISC_PAGES; slotInDiskIdx++){
+		if (proc->pages.disk.pageTables[slotInDiskIdx].used == PAGE_UNUSED){
+			proc->pages.disk.pageTables[slotInDiskIdx].used = PAGE_USED;
+			break;
+		}
+	}
 	switch (SELECTION){
 	case FIFO:
 		pageToMoveIdx = -1;
@@ -241,30 +249,38 @@ uint moveToDisk(pde_t *pgdir){
 				pageToMoveIdx = k;
 			}
 			else if (proc->pages.memory.pageTables[k].used == PAGE_USED &&
-					(proc->pages.memory.pageTables[k].ctime < proc->pages.memory.pageTables[pageToMoveIdx].ctime)){
+					(proc->pages.memory.pageTables[k].enterTime < proc->pages.memory.pageTables[pageToMoveIdx].enterTime)){
 				pageToMoveIdx = k;
 			}
 		}
-		cprintf("pgae to move idx      %d\n", pageToMoveIdx);
+		if (pageToMoveIdx == -1) {panic("FIFO failed\n");}
+		cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
 		break;
 	case SCFIFO:
-		pageToMoveIdx = -1;
-		pte_t * page;
-		for (k = 0; k < MAX_PSYC_PAGES; k++){
-			if (proc->pages.memory.pageTables[k].used == PAGE_USED && pageToMoveIdx == -1){
-				pageToMoveIdx = k;
-			}
-			else if (proc->pages.memory.pageTables[k].used == PAGE_USED &&
-					(proc->pages.memory.pageTables[k].ctime < proc->pages.memory.pageTables[pageToMoveIdx].ctime)){
-				page = walkpgdir(proc->pgdir,(char *) proc->pages.memory.pageTables[k].virtualAddress,0);
-				if (*page & PTE_A){	//check if reference bit is on
-					*page = *page & ~PTE_A;		//turn reference off
-					proc->pages.memory.pageTables[k].ctime += proc->pages.memory.lastEnterTime;
+		proc->pages.debug++;
+		while (!stop){
+			pageToMoveIdx = -1;
+			pte_t * page;
+			for (k = 0; k < MAX_PSYC_PAGES; k++){
+				if (proc->pages.memory.pageTables[k].used == PAGE_USED && pageToMoveIdx == -1){
+					pageToMoveIdx = k;
 				}
-				else pageToMoveIdx = k;
+				else if (proc->pages.memory.pageTables[k].used == PAGE_USED &&
+						(proc->pages.memory.pageTables[k].enterTime < proc->pages.memory.pageTables[pageToMoveIdx].enterTime)){
+					pageToMoveIdx = k;
+				}
+			}
+			page = walkpgdir(proc->pgdir,(char *) proc->pages.memory.pageTables[k].virtualAddress,0);
+			test = *page & PTE_A;
+			if (test){	//check if reference bit is on
+				*page = *page & ~PTE_A;		//turn reference off
+				proc->pages.memory.pageTables[pageToMoveIdx].enterTime += ticks;
+			}
+			else{
+				stop = 1;
 			}
 		}
-		cprintf("pgae to move idx      %d\n", pageToMoveIdx);
+		cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
 		break;
 	case NFU:
 		pageToMoveIdx = -1;
@@ -273,39 +289,28 @@ uint moveToDisk(pde_t *pgdir){
 				pageToMoveIdx = k;
 			}
 			else if (proc->pages.memory.pageTables[k].used == PAGE_USED &&
-					(proc->pages.memory.pageTables[k].age > proc->pages.memory.pageTables[pageToMoveIdx].age)){
+					(proc->pages.memory.pageTables[k].age < proc->pages.memory.pageTables[pageToMoveIdx].age)){
 				pageToMoveIdx = k;
 			}
 		}
-		cprintf("pgae to move idx      %d\n", pageToMoveIdx);
+		cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
 		break;
 	default:
 		break;
+	}
 
-	}
-	for(pageToMoveIdx = 0; pageToMoveIdx < MAX_PSYC_PAGES; pageToMoveIdx++){
-		if (proc->pages.memory.pageTables[pageToMoveIdx].used == PAGE_USED) {
-			pageToMove = proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress;
-			pageToMove_pte = walkpgdir(pgdir,(char *) pageToMove,0);
-			proc->pages.memory.pageTables[pageToMoveIdx].used = PAGE_UNUSED;
-			break;
-		}
-	}
-	for(slotInDiskIdx = 0; slotInDiskIdx  < MAX_PSYC_PAGES; slotInDiskIdx++){
-		if (proc->pages.disk.pageTables[slotInDiskIdx].used == PAGE_UNUSED){
-			proc->pages.disk.pageTables[slotInDiskIdx].used = PAGE_USED;
-			break;
-		}
-	}
-	writeToSwapFile(proc,(char *) pageToMove, slotInDiskIdx*PGSIZE,PGSIZE);
+	pageToMove = proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress;
+	pageToMove_pte = walkpgdir(pgdir,(char *) pageToMove,0);
+	writeToSwapFile(proc,(char *) p2v(PTE_ADDR(*pageToMove_pte)), slotInDiskIdx*PGSIZE,PGSIZE);
+	cprintf("slot in disk %d\n", slotInDiskIdx);
+	proc->pages.disk.pageTables[slotInDiskIdx].virtualAddress = pageToMove;
+	kfree((char*) p2v(PTE_ADDR(*pageToMove_pte)));
 	*pageToMove_pte = *pageToMove_pte & ~PTE_P;		//turn off presence flag
 	*pageToMove_pte = *pageToMove_pte | PTE_PG;	//turn on swapped out flag
 	proc->pages.memory.count--;
 	proc->pages.disk.count++;
 	proc->pages.totalPagedOut++;
-	//	proc->pages.disk.pageTables[pageToMoveIdx].virtualAddress = PGROUNDDOWN(pageToMove);
-//	cprintf("$$$$$$$$$$$$$$ Page To Move   %d    %d\n", slotInDiskIdx, pageToMove);
-	proc->pages.disk.pageTables[slotInDiskIdx].virtualAddress = pageToMove;
+	lcr3(v2p(proc->pgdir));
 	return pageToMoveIdx; //index for empty page slot
 }
 
@@ -315,7 +320,7 @@ int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
 	w(allocuvm)
-			char *mem;
+																	char *mem;
 	uint a;
 	uint freePageIdx = 0;
 
@@ -356,9 +361,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 			w(here2)
 			proc->pages.memory.count++;
 			w(here3)
-			proc->pages.memory.pageTables[freePageIdx].ctime = t;
+			proc->pages.memory.pageTables[freePageIdx].enterTime = t;
 			w(here4)
-			proc->pages.memory.lastEnterTime = t;
 			w(here5)
 			VALD(a)
 			proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
@@ -378,9 +382,9 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 int
 deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-	w(deallocuvm)
-			pte_t *pte;
+	pte_t *pte;
 	uint a, pa;
+	int idx;
 
 	if(newsz >= oldsz)
 		return oldsz;
@@ -396,8 +400,12 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 				panic("kfree");
 			char *v = p2v(pa);
 			kfree(v);
-			if (SELECTION != NONE){
-//				proc->pages.memory.count--;
+			for (idx = 0; idx < MAX_PSYC_PAGES; idx++){
+				if((char*) proc->pages.memory.pageTables[idx].virtualAddress == v){
+					proc->pages.memory.pageTables[idx].used = PAGE_UNUSED;
+					proc->pages.memory.count--;
+					break;
+				}
 			}
 			*pte = 0;
 		}
@@ -411,7 +419,7 @@ void
 freevm(pde_t *pgdir)
 {
 	w(freevm)
-			uint i;
+																	uint i;
 
 	if(pgdir == 0)
 		panic("freevm: no pgdir");
@@ -431,7 +439,7 @@ void
 clearpteu(pde_t *pgdir, char *uva)
 {
 	w(clearpteu)
-			pte_t *pte;
+																	pte_t *pte;
 
 	pte = walkpgdir(pgdir, uva, 0);
 	if(pte == 0)
@@ -444,9 +452,9 @@ clearpteu(pde_t *pgdir, char *uva)
 pde_t*
 copyuvm(pde_t *pgdir, uint sz)
 {
-	w(copyuvm)
-			pde_t *d;
+	pde_t *d;
 	pte_t *pte;
+	pte_t *pte_helper;
 	uint pa, i, flags;
 	char *mem;
 
@@ -455,10 +463,18 @@ copyuvm(pde_t *pgdir, uint sz)
 	for(i = 0; i < sz; i += PGSIZE){
 		if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
 			panic("copyuvm: pte should exist");
-//		if(!(*pte & PTE_P))
-//			panic("copyuvm: page not present");
+		if(!(*pte & PTE_P) && !(*pte & PTE_PG))
+			panic("copyuvm: page not present");
 		pa = PTE_ADDR(*pte);
 		flags = PTE_FLAGS(*pte);
+		if (!(*pte & PTE_P) && (*pte & PTE_PG)){
+			if(mappages(d, (void*)i, PGSIZE, v2p(mem), flags) < 0)
+						goto bad;
+			pte_helper	=	walkpgdir(d, (void*)i, 1);
+			*pte_helper = *pte_helper & (~PTE_P);
+			*pte_helper = *pte_helper | PTE_PG;
+			continue;
+		}
 		if((mem = kalloc()) == 0)
 			goto bad;
 		memmove(mem, (char*)p2v(pa), PGSIZE);
@@ -478,7 +494,7 @@ char*
 uva2ka(pde_t *pgdir, char *uva)
 {
 	w(uva2ka)
-			pte_t *pte;
+																	pte_t *pte;
 
 	pte = walkpgdir(pgdir, uva, 0);
 	if((*pte & PTE_P) == 0)
@@ -495,7 +511,7 @@ int
 copyout(pde_t *pgdir, uint va, void *p, uint len)
 {
 	w(copyout)
-			char *buf, *pa0;
+																	char *buf, *pa0;
 	uint n, va0;
 
 	buf = (char*)p;

@@ -3,6 +3,7 @@
 #define PAGE_USED 1
 #define PAGE_UNUSED 0
 #define MAX_PSYC_PAGES 15
+#define MAX_DISC_PAGES 17
 #define MAX_TOTAL_PAGES
 #define GROW	1 << 31
 
@@ -56,22 +57,27 @@ struct context {
 
 typedef struct page {
 	int used;
-	int ctime;
+	int enterTime;
 	int age;
 	uint virtualAddress;
 } page;
 
 typedef struct pages_data{
 	int count;
-	page pageTables[15];
-	int lastEnterTime;
+	page pageTables[MAX_PSYC_PAGES];
 } pages_data;
+
+typedef struct pages_data_disk{
+	int count;
+	page pageTables[MAX_DISC_PAGES];
+} pages_data_disk;
 
 typedef struct pages_info {
 	pages_data memory;
-	pages_data disk;
+	pages_data_disk disk;
 	uint pageFaults;
 	uint totalPagedOut;
+	int debug;
 } pages_info;
 
 

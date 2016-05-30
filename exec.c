@@ -21,22 +21,22 @@ exec(char *path, char **argv)
 	struct proghdr ph;
 	pde_t *pgdir, *oldpgdir;
 	createSwapFile(proc);
-	for (i = 0; i < MAX_PSYC_PAGES; i++){
+	for (i = 0; i < MAX_DISC_PAGES; i++){
 		proc->pages.disk.pageTables[i].virtualAddress = 0;
 		proc->pages.disk.pageTables[i].used = 0;
 		proc->pages.disk.pageTables[i].age = 0;
-		proc->pages.disk.pageTables[i].ctime = 0;
-		proc->pages.memory.pageTables[i].virtualAddress = 0;
-		proc->pages.memory.pageTables[i].used = 0;
-		proc->pages.memory.pageTables[i].age = 0;
-		proc->pages.memory.pageTables[i].ctime = 0;
+		proc->pages.disk.pageTables[i].enterTime = 0;
+		if (i < MAX_PSYC_PAGES){
+			proc->pages.memory.pageTables[i].virtualAddress = 0;
+			proc->pages.memory.pageTables[i].used = 0;
+			proc->pages.memory.pageTables[i].age = 0;
+			proc->pages.memory.pageTables[i].enterTime = 0;
+		}
 	}
 	proc->pages.disk.count = 0;
 	proc->pages.memory.count = 0;
 	proc->pages.pageFaults = 0;
 	proc->pages.totalPagedOut = 0;
-	proc->pages.disk.lastEnterTime = 0;
-	proc->pages.memory.lastEnterTime = 0;
 
 	i = 0;
 	begin_op();

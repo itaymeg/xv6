@@ -99,14 +99,6 @@ trap(struct trapframe *tf)
 
 	//PAGEBREAK: 13
 	case T_PGFLT:
-//		cprintf("number %d\n", proc->pages.memory.count);
-//		cprintf("page fault add %x\n", rcr2());
-//		if (rcr2() == 0xf000) {
-//			for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
-//				cprintf("add %d %d\n", diskPageIdx, proc->pages.disk.pageTables[diskPageIdx].virtualAddress);
-//			}
-//		}
-			//panic("page fault!!!!!!\n");
 			proc->pages.pageFaults++;
 			pageToRetrieve = PGROUNDDOWN(rcr2());
 			pte_t* pageToRetrieve_pte = walkpgdir(proc->pgdir, (char*) pageToRetrieve, 0);
@@ -114,16 +106,22 @@ trap(struct trapframe *tf)
 			if (swapped) swapped = *pageToRetrieve_pte & PTE_PG;
 			else swapped = 0;
 			if (swapped){
-				for (diskPageIdx = 0; diskPageIdx < MAX_PSYC_PAGES; diskPageIdx++){
+				for (diskPageIdx = 0; diskPageIdx < MAX_DISC_PAGES; diskPageIdx++){
 					if (proc->pages.disk.pageTables[diskPageIdx].virtualAddress == pageToRetrieve){
 						found = 1;
 						break;
 					}
 				}
 				//TODO remove debug lines
-				if (!found) panic("Page is not in disk!!!!!\n");
+				if (!found) {
+					int idx;
+					for (idx = 0; idx < MAX_DISC_PAGES; idx++){
+						cprintf("disk place %d contains add %x status %d\n", idx, proc->pages.disk.pageTables[idx].virtualAddress, proc->pages.disk.pageTables[idx].used);
+					}
+					cprintf("add %x is not in disk\n", pageToRetrieve);
+					panic("Page is not in disk debug finished!!!!!\n");
+				}
 				//finish debug
-//				cprintf("found in disk!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 				if (proc->pages.memory.count == MAX_PSYC_PAGES){
 					emptySlotMemory = moveToDisk(proc->pgdir);
 				}
@@ -143,11 +141,11 @@ trap(struct trapframe *tf)
 				}
 				readFromSwapFile(proc,retrievedPageMem,diskPageIdx*PGSIZE,PGSIZE);
 				mappages(proc->pgdir, (char*) pageToRetrieve, PGSIZE, v2p(retrievedPageMem), PTE_W|PTE_U);
-				//proc->pages.memory.count++;
+				int t = ticks;
 				proc->pages.disk.count--;
 				proc->pages.disk.pageTables[diskPageIdx].used = PAGE_UNUSED;
 				proc->pages.memory.pageTables[emptySlotMemory].virtualAddress = pageToRetrieve;
-				proc->pages.memory.lastEnterTime = ticks;
+				proc->pages.memory.pageTables[emptySlotMemory].enterTime = t;
 			}
 			else{
 				*pageToRetrieve_pte = *pageToRetrieve_pte | PTE_P;
