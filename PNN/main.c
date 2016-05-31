@@ -10,6 +10,8 @@ static void startothers(void);
 static void mpmain(void)  __attribute__((noreturn));
 extern pde_t *kpgdir;
 extern char end[]; // first address after kernel loaded from ELF file
+extern int maxFreePages;
+extern int countPages;
 
 // Bootstrap processor starts running C code here.
 // Allocate a real stack and switch to it, first
@@ -17,6 +19,8 @@ extern char end[]; // first address after kernel loaded from ELF file
 int
 main(void)
 {
+  maxFreePages=0;
+  countPages=0;
   kinit1(end, P2V(4*1024*1024)); // phys page allocator
   kvmalloc();      // kernel page table
   mpinit();        // collect info about this machine

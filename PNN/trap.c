@@ -108,9 +108,9 @@ trap(struct trapframe *tf)
 	if(proc->existInRAM[j]!=0)
 	{
 	  pte = walkpgdir(proc->pgdir,proc->pagesInRAM[j].va,0);
-	  proc->pagesInRAM[i].aging = (proc->pagesInRAM[i].aging)>>1;
+	  proc->pagesInRAM[j].aging = (proc->pagesInRAM[j].aging)>>1;
 	  if(*pte&PTE_A){
-	    proc->pagesInRAM[i].aging = proc->pagesInRAM[i].aging +128;
+	    proc->pagesInRAM[j].aging = proc->pagesInRAM[j].aging +128;
 	  }
 	  *pte = (*pte)&(~PTE_A);
 	}
@@ -161,7 +161,7 @@ trap(struct trapframe *tf)
 		countPagesInRAM++;
 	    }
 	  
-	  if((countPagesInRAM == 15) && (SELECTION!=NONE)){
+	  if((countPagesInRAM == 15) && (!(strncmp("sh",proc->name,3) == 0)) && (!(strncmp("init",proc->name,5) == 0)) && (SELECTION!=NONE)){
 	    swap(proc->pgdir);
 	  }
 	  mem = kalloc();
@@ -170,8 +170,12 @@ trap(struct trapframe *tf)
 	    return;
 	  }
 	  proc->existInOffset[i]=0;
-	  readFromSwapFile(proc,mem,i*PGSIZE,PGSIZE);
+	
+	  memset(mem, 0, PGSIZE);
 	  mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
+	  pte_t *pte = walkpgdir(proc->pgdir, pageToSwap, 0);
+	  readFromSwapFile(proc, (char*)p2v(PTE_ADDR(*(pte))), i*PGSIZE, PGSIZE);
+
 	  for(i=0;i<15;i++){
 	    if(proc->existInRAM[i]==0)
 	      break;

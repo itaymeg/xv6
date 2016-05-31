@@ -20,6 +20,9 @@ int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
 extern int time;
+extern int maxFreePages;
+extern int countPages;
+
 
 static void wakeup1(void *chan);
 
@@ -109,6 +112,8 @@ userinit(void)
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
   
+  
+  
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -152,7 +157,7 @@ fork(void)
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
-
+// cprintf("----------- before  Copy process state from p.\n");
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
@@ -165,21 +170,22 @@ fork(void)
   *np->tf = *proc->tf;
   
   createSwapFile(np);
-/*
-cprintf("----------- before copy swap file\n");*/
-  if(proc!=0 && proc->swapFile != 0){
-    for(i=0;i<30;i++){
+
+// cprintf("----------- before copy swap file\n");
+  if(proc!=0 && !(strncmp("init",proc->name,5)==0) && !(strncmp("sh",proc->name,3)==0)){
+     
+    for(i=0;i<15;i++){
       for(k=0;k<PGSIZE;k+=128){
+	memset(buffer, 0, 128);
 	countRead = readFromSwapFile(proc,buffer,i*PGSIZE+k,128);
+// 	cprintf("-------------- countRead = %d\n",countRead);
 	writeToSwapFile(np,buffer,i*PGSIZE+k,countRead);
       }
+//       countRead = readFromSwapFile(proc,buffer,i*PGSIZE,PGSIZE);
+//       writeToSwapFile(np,buffer,i*PGSIZE,countRead);
     }
 //     cprintf("-------------- after copy swap file\n");
-    np->swapFile->ip = proc->swapFile->ip;
-    np->swapFile->type = proc->swapFile->type;
-    np->swapFile->off = proc->swapFile->off;
-    np->swapFile->readable = proc->swapFile->readable;
-    np->swapFile->writable =proc->swapFile->writable;
+
     for(i=0;i<15;i++){
       np->pagesInFile[i] = proc->pagesInFile[i];
       np->existInOffset[i] = proc->existInOffset[i];
@@ -222,8 +228,17 @@ void
 exit(void)
 {
   struct proc *p;
-  int fd;
+  int fd,i;
 
+    int count1=0;
+    int count2=0;
+    for(i=0;i<15;i++){
+      if(proc->existInRAM[i]==1)
+	count1++;
+      if(proc->existInOffset[i]==1)
+	count2++;
+    }
+    
   if(proc == initproc)
     panic("init exiting");
 
@@ -256,6 +271,10 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
+  if(VERBOSE_PRINT==TRUE){
+    cprintf("%d %s %d %d %d %d %s\n", proc->pid, "zombie",count1+count2,count2,proc->numOfPageFaults,proc->numOfPagedOut, proc->name);
+    cprintf(" %d% free pages in the system\n",(maxFreePages-countPages)*100/maxFreePages);
+  }
   sched();
   panic("zombie exit");
 }
@@ -266,8 +285,8 @@ int
 wait(void)
 {
   struct proc *p;
-  struct proc ptemp;
   int havekids, pid;
+  struct proc temp;
 
   acquire(&ptable.lock);
   for(;;){
@@ -279,10 +298,8 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
-	if(VERBOSE_PRINT==TRUE){
-	  cprintf("<percentage>%\n");
-	}
-	ptemp.swapFile= p->swapFile;
+	temp.pid = p->pid;
+	temp.swapFile = p->swapFile;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
@@ -294,9 +311,7 @@ wait(void)
         p->killed = 0;
 	p->swapFile = 0;
         release(&ptable.lock);
-	
-	ptemp.pid = pid;
-	removeSwapFile(&ptemp);
+	removeSwapFile(&temp);
         return pid;
       }
     }
@@ -533,6 +548,7 @@ procdump(void)
     }
     cprintf("\n");
   }
+  cprintf(" %d% free pages in the system\n",(maxFreePages-countPages)*100/maxFreePages);
 }
 
 

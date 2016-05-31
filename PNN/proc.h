@@ -84,6 +84,7 @@ struct proc {
  
  int numOfPageFaults;
  int numOfPagedOut;
+ 
 
 };
 

@@ -221,7 +221,7 @@ findPageToSwap(){
   int i,minctime=ticks+1;
   int minProc=-1;
   pte_t *pte;
-  int minAging = 256;
+  int minAging = 257;
   
   if(SELECTION==FIFO){
     for(i=0;i<15;i++){
@@ -236,7 +236,7 @@ findPageToSwap(){
   }
   else if(SELECTION==SCFIFO){
     while(1){
-      for(i=3;i<15;i++){
+      for(i=0;i<15;i++){
 	if(proc->existInRAM[i]==0)
 	  continue;
 	if(minctime> proc->pagesInRAM[i].ctime){
@@ -292,15 +292,18 @@ swap(pde_t *pgdir){
     }
   }
   proc->existInOffset[i]=1;   
-  writeToSwapFile(proc,pageToSwap, i*PGSIZE,PGSIZE);   
+  writeToSwapFile(proc,(char*)p2v(PTE_ADDR(*(pte))), i*PGSIZE,PGSIZE); 
+  
   *pte = (*pte & (~PTE_P) ) | PTE_PG;
 
     //cprintf("--------- swap: page has moved to file  -------------\n");
 
   proc->pagesInFile[i] = pageToSwap;
-  //kfree(pageToSwap);
+  kfree((char*)p2v(PTE_ADDR(*(pte))));
+  *pte = *pte & ~PTE_P;
+  *pte = *pte | PTE_PG;
   //cprintf("--------- swap: done  -------------\n"); 
-
+  lcr3(v2p(proc->pgdir));
 }
 
 // Allocate page tables and physical memory to grow process from oldsz to
@@ -344,6 +347,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       proc->pagesInRAM[i].va = (char*)a;
       time++;
       proc->pagesInRAM[i].ctime = time;
+      proc->pagesInRAM[i].aging=0;
   }
   return newsz;
 }
@@ -425,6 +429,7 @@ copyuvm(pde_t *pgdir, uint sz)
 {
   pde_t *d;
   pte_t *pte;
+  pte_t *pte2;
   uint pa, i, flags;
   char *mem;
 
@@ -433,10 +438,18 @@ copyuvm(pde_t *pgdir, uint sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-//     if(!(*pte & PTE_P))
-//       panic("copyuvm: page not present");
+    if(!(*pte & PTE_P) && !(*pte & PTE_PG))
+       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
+    if(!(*pte & PTE_P) && (*pte & PTE_PG)){
+      if(mappages(d, (void*)i, PGSIZE, v2p(0), flags) < 0)
+	goto bad;
+      pte2 = walkpgdir(d, (void*)i, 1);
+      *pte2 = *pte2 & (~PTE_P);
+      *pte2 = *pte2 | PTE_PG;
+      continue;
+    }
     if((mem = kalloc()) == 0)
       goto bad;
     memmove(mem, (char*)p2v(pa), PGSIZE);
