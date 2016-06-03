@@ -50,7 +50,7 @@ static struct proc*
 allocproc(void)
 {
 	w(allocproc)
-																									struct proc *p;
+																											struct proc *p;
 	char *sp;
 
 	acquire(&ptable.lock);
@@ -112,7 +112,7 @@ void
 userinit(void)
 {
 	w(userinit)
-																									calcKernelPages();
+																											calcKernelPages();
 	struct proc *p;
 	extern char _binary_initcode_start[], _binary_initcode_size[];
 
@@ -145,11 +145,11 @@ growproc(int n)
 	sz = proc->sz;
 	if(n > 0){
 		w(proc1)
-																										if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
-																										{
-																											VALD(sz)
-																											return -1;
-																										}
+																												if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+																												{
+																													VALD(sz)
+																													return -1;
+																												}
 	} else if(n < 0){
 		if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
 			return -1;
@@ -176,7 +176,7 @@ int
 fork(void)
 {
 	w(fork)
-																									int i, pid;
+																											int i, pid;
 	struct proc *np;
 	// Allocate process.
 	if((np = allocproc()) == 0)
@@ -337,6 +337,7 @@ exit(void)
 int
 wait(void)
 {
+	struct proc toRemove;
 	struct proc *p;
 	int havekids, pid;
 
@@ -360,6 +361,8 @@ wait(void)
 					};
 					cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
 				}
+				toRemove.pid = p->pid;
+				toRemove.swapFile = p->swapFile;
 				// Found one.
 				pid = p->pid;
 				kfree(p->kstack);
@@ -377,7 +380,8 @@ wait(void)
 				}
 				release(&ptable.lock);
 				if (SELECTION != NONE){
-					removeSwapFile(p);
+					//removeSwapFile(p);
+					removeSwapFile(&toRemove);
 				}
 				return pid;
 			}
@@ -595,7 +599,7 @@ int
 kill(int pid)
 {
 	w(kill)
-																									struct proc *p;
+																											struct proc *p;
 
 	acquire(&ptable.lock);
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
