@@ -13,54 +13,6 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
-extern void swap(pde_t *pgdir);
-extern int time;
-
-
-static pte_t *
-walkpgdir(pde_t *pgdir, const void *va, int alloc)
-{
-  pde_t *pde;
-  pte_t *pgtab;
-
-  pde = &pgdir[PDX(va)];
-  if(*pde & PTE_P){
-    pgtab = (pte_t*)p2v(PTE_ADDR(*pde));
-  } else {
-    if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
-      return 0;
-    // Make sure all those PTE_P bits are zero.
-    memset(pgtab, 0, PGSIZE);
-    // The permissions here are overly generous, but they can
-    // be further restricted by the permissions in the page table 
-    // entries, if necessary.
-    *pde = v2p(pgtab) | PTE_P | PTE_W | PTE_U;
-  }
-  return &pgtab[PTX(va)];
-}
-
-
-static int
-mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
-{
-  char *a, *last;
-  pte_t *pte;
-  
-  a = (char*)PGROUNDDOWN((uint)va);
-  last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
-  for(;;){
-    if((pte = walkpgdir(pgdir, a, 1)) == 0)
-      return -1;
-    if(*pte & PTE_P)
-      panic("remap");
-    *pte = pa | perm | PTE_P;
-    if(a == last)
-      break;
-    a += PGSIZE;
-    pa += PGSIZE;
-  }
-  return 0;
-}
 
 void
 tvinit(void)
@@ -84,10 +36,6 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
-   char* pageToSwap,*mem;
-   int i=0,countPagesInRAM=0;
-   int j;
-   pte_t* pte;
   if(tf->trapno == T_SYSCALL){
     if(proc->killed)
       exit();
@@ -103,19 +51,6 @@ trap(struct trapframe *tf)
     if(cpu->id == 0){
       acquire(&tickslock);
       ticks++;
-      if(proc && (SELECTION == NFU)){
-      for(j=0;j<15;j++){
-	if(proc->existInRAM[j]!=0)
-	{
-	  pte = walkpgdir(proc->pgdir,proc->pagesInRAM[j].va,0);
-	  proc->pagesInRAM[j].aging = (proc->pagesInRAM[j].aging)>>1;
-	  if(*pte&PTE_A){
-	    proc->pagesInRAM[j].aging = proc->pagesInRAM[j].aging +128;
-	  }
-	  *pte = (*pte)&(~PTE_A);
-	}
-      }
-      }
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -142,53 +77,7 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-  case T_PGFLT:
-
-      proc->numOfPageFaults++;
-      pageToSwap = (char*)PGROUNDDOWN(rcr2());
-      pte_t *pte = walkpgdir(proc->pgdir,pageToSwap,0);
-      
-      if(!(*pte & PTE_P)){
-      // cprintf("------------ trap: T_PGFLT not present ------------\n");
-	if(*pte & PTE_PG){
-	  //cprintf("------------ trap: T_PGFLT not present and pagedout----------------\n");
-	  //cprintf("--------- trap: page found in rcr2 %x -------------\n",pageToSwap);
-	  for(i=0;i<15;i++)
-	    if(proc->pagesInFile[i]==pageToSwap)
-	      break;
-	    for(j=0;j<15;j++){
-	      if(proc->existInRAM[j]==1)
-		countPagesInRAM++;
-	    }
-	  
-	  if((countPagesInRAM == 15) && (!(strncmp("sh",proc->name,3) == 0)) && (!(strncmp("init",proc->name,5) == 0)) && (SELECTION!=NONE)){
-	    swap(proc->pgdir);
-	  }
-	  mem = kalloc();
-	  if(mem == 0){
-	    cprintf("allocuvm out of memory\n");
-	    return;
-	  }
-	  proc->existInOffset[i]=0;
-	
-	  memset(mem, 0, PGSIZE);
-	  mappages(proc->pgdir, (char*)pageToSwap, PGSIZE, v2p(mem), PTE_W|PTE_U);
-	  pte_t *pte = walkpgdir(proc->pgdir, pageToSwap, 0);
-	  readFromSwapFile(proc, (char*)p2v(PTE_ADDR(*(pte))), i*PGSIZE, PGSIZE);
-
-	  for(i=0;i<15;i++){
-	    if(proc->existInRAM[i]==0)
-	      break;
-	  }
-	  proc->existInRAM[i]=1;
-	  proc->pagesInRAM[i].va = (char*)pageToSwap;
-	  time++;
-	  proc->pagesInRAM[i].ctime = time;
-	}
-      }
-
-    break;
-    
+   
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){

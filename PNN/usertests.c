@@ -862,15 +862,12 @@ linkunlink()
   printf(1, "linkunlink test\n");
 
   unlink("x");
-  printf(1,"after unlink\n");
   pid = fork();
   if(pid < 0){
     printf(1, "fork failed\n");
     exit();
   }
 
-  printf(1,"after fork\n");
-  
   unsigned int x = (pid ? 1 : 97);
   for(i = 0; i < 100; i++){
     x = x * 1103515245 + 12345;
@@ -1727,7 +1724,7 @@ main(int argc, char *argv[])
   bigwrite();
   bigargtest();
   bsstest();
-//   sbrktest();
+  sbrktest();
   validatetest();
 
   opentest();
@@ -1739,7 +1736,7 @@ main(int argc, char *argv[])
   exitiputtest();
   iputtest();
 
-//   mem();
+  mem();
   pipe1();
   preempt();
   exitwait();

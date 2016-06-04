@@ -12,9 +12,6 @@
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
 
-int maxFreePages;
-int countPages;
-
 struct run {
   struct run *next;
 };
@@ -41,10 +38,8 @@ kinit1(void *vstart, void *vend)
 void
 kinit2(void *vstart, void *vend)
 {
-  maxFreePages = (vend - vstart)/PGSIZE;
   freerange(vstart, vend);
   kmem.use_lock = 1;
-  cprintf("------ maxFreePages : %d --------\n",maxFreePages);
 }
 
 void
@@ -87,7 +82,6 @@ kfree(char *v)
 char*
 kalloc(void)
 {
-  countPages++;
   struct run *r;
 
   if(kmem.use_lock)

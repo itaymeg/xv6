@@ -49,12 +49,6 @@ struct context {
   uint eip;
 };
 
-struct page {
-  char* va;
-  int ctime;
-  int aging;
-};
-
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -75,16 +69,6 @@ struct proc {
 
   //Swap file. must initiate with create swap file
   struct file *swapFile;			//page file
-  
-  char* pagesInFile[15];
-  int existInOffset[15];
-  
- struct page pagesInRAM[15];
- int existInRAM[15];
- 
- int numOfPageFaults;
- int numOfPagedOut;
- 
 
 };
 

@@ -10,7 +10,6 @@
 int
 exec(char *path, char **argv)
 {
-  //cprintf(" -------------------- exec ------------------\n");
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -19,8 +18,6 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
 
-    createSwapFile(proc);
-  
   begin_op();
   if((ip = namei(path)) == 0){
     end_op();
@@ -29,14 +26,6 @@ exec(char *path, char **argv)
   ilock(ip);
   pgdir = 0;
 
-    for(i=0;i<15;i++){
-    proc->pagesInFile[i] = 0;
-    proc->existInOffset[i] = 0;
-  }
-  for(i=0;i<15;i++){
-    proc->existInRAM[i] = 0;
-  }
-  
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) < sizeof(elf))
     goto bad;
@@ -103,7 +92,6 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
-
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;

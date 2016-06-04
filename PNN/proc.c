@@ -6,8 +6,6 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "fs.h"
-#include "file.h"
 
 struct {
   struct spinlock lock;
@@ -19,10 +17,6 @@ static struct proc *initproc;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
-extern int time;
-extern int maxFreePages;
-extern int countPages;
-
 
 static void wakeup1(void *chan);
 
@@ -42,8 +36,7 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-  int i;
-  
+
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == UNUSED)
@@ -56,7 +49,6 @@ found:
   p->pid = nextpid++;
   release(&ptable.lock);
 
-  
   // Allocate kernel stack.
   if((p->kstack = kalloc()) == 0){
     p->state = UNUSED;
@@ -77,14 +69,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-  
-  for(i=0;i<15;i++){
-    p->existInOffset[i]=0;
-   p->existInRAM[i]=0;
-  }
-  
-  p->numOfPageFaults=0;
-  p->numOfPagedOut=0;
+
   return p;
 }
 
@@ -93,7 +78,6 @@ found:
 void
 userinit(void)
 {
-  time=0;
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
   
@@ -111,9 +95,7 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-  
-  
-  
+
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -140,24 +122,19 @@ growproc(int n)
   return 0;
 }
 
-
-
-  
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
 int
 fork(void)
 {
-  int i, pid,k;
+  int i, pid;
   struct proc *np;
-  char buffer[128];
-  int countRead=0;
 
   // Allocate process.
   if((np = allocproc()) == 0)
     return -1;
-// cprintf("----------- before  Copy process state from p.\n");
+
   // Copy process state from p.
   if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
     kfree(np->kstack);
@@ -168,39 +145,7 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-  
-  createSwapFile(np);
 
-// cprintf("----------- before copy swap file\n");
-  if(proc!=0 && !(strncmp("init",proc->name,5)==0) && !(strncmp("sh",proc->name,3)==0)){
-     
-    for(i=0;i<15;i++){
-      for(k=0;k<PGSIZE;k+=128){
-	memset(buffer, 0, 128);
-	countRead = readFromSwapFile(proc,buffer,i*PGSIZE+k,128);
-// 	cprintf("-------------- countRead = %d\n",countRead);
-	writeToSwapFile(np,buffer,i*PGSIZE+k,countRead);
-      }
-//       countRead = readFromSwapFile(proc,buffer,i*PGSIZE,PGSIZE);
-//       writeToSwapFile(np,buffer,i*PGSIZE,countRead);
-    }
-//     cprintf("-------------- after copy swap file\n");
-
-    for(i=0;i<15;i++){
-      np->pagesInFile[i] = proc->pagesInFile[i];
-      np->existInOffset[i] = proc->existInOffset[i];
-    }
-  }
-    for(i=0;i<15;i++){
-      np->pagesInRAM[i].va =  proc->pagesInRAM[i].va; 
-      np->pagesInRAM[i].aging =  proc->pagesInRAM[i].aging; 
-      np->pagesInRAM[i].ctime =  proc->pagesInRAM[i].ctime; 
-      np->existInRAM[i] = proc->existInRAM[i];
-    }
-    np->numOfPageFaults=proc->numOfPageFaults;
-    np->numOfPagedOut=proc->numOfPagedOut;
-
-  
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -217,7 +162,7 @@ fork(void)
   acquire(&ptable.lock);
   np->state = RUNNABLE;
   release(&ptable.lock);
-  //cprintf(" -------------------- fork --------------------\n");
+  
   return pid;
 }
 
@@ -228,17 +173,8 @@ void
 exit(void)
 {
   struct proc *p;
-  int fd,i;
+  int fd;
 
-    int count1=0;
-    int count2=0;
-    for(i=0;i<15;i++){
-      if(proc->existInRAM[i]==1)
-	count1++;
-      if(proc->existInOffset[i]==1)
-	count2++;
-    }
-    
   if(proc == initproc)
     panic("init exiting");
 
@@ -271,10 +207,6 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
-  if(VERBOSE_PRINT==TRUE){
-    cprintf("%d %s %d %d %d %d %s\n", proc->pid, "zombie",count1+count2,count2,proc->numOfPageFaults,proc->numOfPagedOut, proc->name);
-    cprintf(" %d% free pages in the system\n",(maxFreePages-countPages)*100/maxFreePages);
-  }
   sched();
   panic("zombie exit");
 }
@@ -286,7 +218,6 @@ wait(void)
 {
   struct proc *p;
   int havekids, pid;
-  struct proc temp;
 
   acquire(&ptable.lock);
   for(;;){
@@ -298,8 +229,6 @@ wait(void)
       havekids = 1;
       if(p->state == ZOMBIE){
         // Found one.
-	temp.pid = p->pid;
-	temp.swapFile = p->swapFile;
         pid = p->pid;
         kfree(p->kstack);
         p->kstack = 0;
@@ -309,9 +238,7 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-	p->swapFile = 0;
         release(&ptable.lock);
-	removeSwapFile(&temp);
         return pid;
       }
     }
@@ -520,8 +447,6 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
-  int count1=0;
-  int count2=0;
   
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
@@ -530,17 +455,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    count1=0;
-    count2=0;
-    for(i=0;i<15;i++){
-      if(p->existInRAM[i]==1)
-	count1++;
-      if(p->existInOffset[i]==1)
-	count2++;
-    }
-    cprintf("%d %s %d %d %d %d %s", p->pid, state,count1+count2,count2,p->numOfPageFaults,p->numOfPagedOut, p->name);
-    
-//     cprintf("\n%d %d %d\n",p->pid,count1,count2); 
+    cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -548,7 +463,4 @@ procdump(void)
     }
     cprintf("\n");
   }
-  cprintf(" %d% free pages in the system\n",(maxFreePages-countPages)*100/maxFreePages);
 }
-
-
