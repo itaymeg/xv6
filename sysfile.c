@@ -194,15 +194,13 @@ sys_unlink(void)
     end_op();
     return -1;
   }
-
   ilock(dp);
-
   // Cannot unlink "." or "..".
   if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
     goto bad;
-
-  if((ip = dirlookup(dp, name, &off)) == 0)
+  if((ip = dirlookup(dp, name, &off)) == 0){
     goto bad;
+  }
   ilock(ip);
 
   if(ip->nlink < 1)

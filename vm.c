@@ -227,7 +227,7 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 
 uint moveToDisk(pde_t *pgdir){
-	int pageToMoveIdx;
+	int pageToMoveIdx = 0;
 	int slotInDiskIdx;
 	int k;
 	pte_t *pageToMove_pte;
@@ -254,7 +254,7 @@ uint moveToDisk(pde_t *pgdir){
 			}
 		}
 		if (pageToMoveIdx == -1) {panic("FIFO failed\n");}
-		cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
+		//cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
 		break;
 	case SCFIFO:
 		proc->pages.debug++;
@@ -280,7 +280,7 @@ uint moveToDisk(pde_t *pgdir){
 				stop = 1;
 			}
 		}
-		cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
+		//cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
 		break;
 	case NFU:
 		pageToMoveIdx = -1;
@@ -293,7 +293,7 @@ uint moveToDisk(pde_t *pgdir){
 				pageToMoveIdx = k;
 			}
 		}
-		cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
+		//cprintf("page to move add      %x\n", proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress);
 		break;
 	default:
 		break;
@@ -302,7 +302,7 @@ uint moveToDisk(pde_t *pgdir){
 	pageToMove = proc->pages.memory.pageTables[pageToMoveIdx].virtualAddress;
 	pageToMove_pte = walkpgdir(pgdir,(char *) pageToMove,0);
 	writeToSwapFile(proc,(char *) p2v(PTE_ADDR(*pageToMove_pte)), slotInDiskIdx*PGSIZE,PGSIZE);
-	cprintf("slot in disk %d\n", slotInDiskIdx);
+	//cprintf("slot in disk %d\n", slotInDiskIdx);
 	proc->pages.disk.pageTables[slotInDiskIdx].virtualAddress = pageToMove;
 	kfree((char*) p2v(PTE_ADDR(*pageToMove_pte)));
 	*pageToMove_pte = *pageToMove_pte & ~PTE_P;		//turn off presence flag

@@ -24,7 +24,7 @@ exec(char *path, char **argv)
 	for (i = 0; i < MAX_DISC_PAGES; i++){
 		proc->pages.disk.pageTables[i].virtualAddress = 0;
 		proc->pages.disk.pageTables[i].used = 0;
-		proc->pages.disk.pageTables[i].age = 0;
+		proc->pages.disk.pageTables[i].age = GROW;
 		proc->pages.disk.pageTables[i].enterTime = 0;
 		if (i < MAX_PSYC_PAGES){
 			proc->pages.memory.pageTables[i].virtualAddress = 0;
