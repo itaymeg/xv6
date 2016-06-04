@@ -191,7 +191,7 @@ void
 inituvm(pde_t *pgdir, char *init, uint sz)
 {
 	w(inituvm)
-																	char *mem;
+																			char *mem;
 
 	if(sz >= PGSIZE)
 		panic("inituvm: more than a page");
@@ -207,7 +207,7 @@ int
 loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 {
 	w(loaduvm)
-																	uint i, pa, n;
+																			uint i, pa, n;
 	pte_t *pte;
 
 	if((uint) addr % PGSIZE != 0)
@@ -319,8 +319,7 @@ uint moveToDisk(pde_t *pgdir){
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
-	w(allocuvm)
-																	char *mem;
+	char *mem;
 	uint a;
 	uint freePageIdx = 0;
 
@@ -336,7 +335,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 			if(proc->pages.memory.count == 15 && notShellOrInit){
 				freePageIdx = moveToDisk(pgdir);
 			}
-			else{
+			else if (notShellOrInit){
 				for (freePageIdx = 0; freePageIdx < MAX_PSYC_PAGES; freePageIdx++){
 					if (proc->pages.memory.pageTables[freePageIdx].used == PAGE_UNUSED){
 						break;
@@ -356,22 +355,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 		mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
 		if (SELECTION != NONE){
 			proc->pages.memory.pageTables[freePageIdx].used = PAGE_USED;
-			w(here1)
 			int t = ticks;
-			w(here2)
 			proc->pages.memory.count++;
-			w(here3)
 			proc->pages.memory.pageTables[freePageIdx].enterTime = t;
-			w(here4)
-			w(here5)
-			VALD(a)
+			proc->pages.memory.pageTables[freePageIdx].age = 0;
 			proc->pages.memory.pageTables[freePageIdx].virtualAddress = a;
-			w(here6)
 		}
 	}
-	w(bnewsize)
-	VALD(newsz)
-	w(anewsize)
 	return newsz;
 }
 
@@ -399,7 +389,6 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 			if(pa == 0)
 				panic("kfree");
 			char *v = p2v(pa);
-			kfree(v);
 			for (idx = 0; idx < MAX_PSYC_PAGES; idx++){
 				if((char*) proc->pages.memory.pageTables[idx].virtualAddress == v){
 					proc->pages.memory.pageTables[idx].used = PAGE_UNUSED;
@@ -407,6 +396,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 					break;
 				}
 			}
+			kfree(v);
 			*pte = 0;
 		}
 	}
@@ -419,7 +409,7 @@ void
 freevm(pde_t *pgdir)
 {
 	w(freevm)
-																	uint i;
+																			uint i;
 
 	if(pgdir == 0)
 		panic("freevm: no pgdir");
@@ -439,7 +429,7 @@ void
 clearpteu(pde_t *pgdir, char *uva)
 {
 	w(clearpteu)
-																	pte_t *pte;
+																			pte_t *pte;
 
 	pte = walkpgdir(pgdir, uva, 0);
 	if(pte == 0)
@@ -468,8 +458,8 @@ copyuvm(pde_t *pgdir, uint sz)
 		pa = PTE_ADDR(*pte);
 		flags = PTE_FLAGS(*pte);
 		if (!(*pte & PTE_P) && (*pte & PTE_PG)){
-			if(mappages(d, (void*)i, PGSIZE, v2p(mem), flags) < 0)
-						goto bad;
+			if(mappages(d, (void*)i, PGSIZE, v2p(0), flags) < 0)
+				goto bad;
 			pte_helper	=	walkpgdir(d, (void*)i, 1);
 			*pte_helper = *pte_helper & (~PTE_P);
 			*pte_helper = *pte_helper | PTE_PG;
@@ -494,7 +484,7 @@ char*
 uva2ka(pde_t *pgdir, char *uva)
 {
 	w(uva2ka)
-																	pte_t *pte;
+																			pte_t *pte;
 
 	pte = walkpgdir(pgdir, uva, 0);
 	if((*pte & PTE_P) == 0)
@@ -511,7 +501,7 @@ int
 copyout(pde_t *pgdir, uint va, void *p, uint len)
 {
 	w(copyout)
-																	char *buf, *pa0;
+																			char *buf, *pa0;
 	uint n, va0;
 
 	buf = (char*)p;

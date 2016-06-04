@@ -50,7 +50,7 @@ static struct proc*
 allocproc(void)
 {
 	w(allocproc)
-																											struct proc *p;
+																													struct proc *p;
 	char *sp;
 
 	acquire(&ptable.lock);
@@ -112,7 +112,7 @@ void
 userinit(void)
 {
 	w(userinit)
-																											calcKernelPages();
+																													calcKernelPages();
 	struct proc *p;
 	extern char _binary_initcode_start[], _binary_initcode_size[];
 
@@ -145,11 +145,11 @@ growproc(int n)
 	sz = proc->sz;
 	if(n > 0){
 		w(proc1)
-																												if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
-																												{
-																													VALD(sz)
-																													return -1;
-																												}
+																														if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
+																														{
+																															VALD(sz)
+																															return -1;
+																														}
 	} else if(n < 0){
 		if((sz = deallocuvm(proc->pgdir, sz, sz + n)) == 0)
 			return -1;
@@ -175,81 +175,84 @@ struct file {
 int
 fork(void)
 {
-	w(fork)
-																											int i, pid;
-	struct proc *np;
-	// Allocate process.
-	if((np = allocproc()) == 0)
-		return -1;
+int i, pid;
+struct proc *np;
+// Allocate process.
+if((np = allocproc()) == 0)
+	return -1;
 
-	// Copy process state from p.
-	if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
-		kfree(np->kstack);
-		np->kstack = 0;
-		np->state = UNUSED;
-		return -1;
-	}
-	np->sz = proc->sz;
-	np->parent = proc;
-	*np->tf = *proc->tf;
+// Copy process state from p.
+if((np->pgdir = copyuvm(proc->pgdir, proc->sz)) == 0){
+	kfree(np->kstack);
+	np->kstack = 0;
+	np->state = UNUSED;
+	return -1;
+}
+np->sz = proc->sz;
+np->parent = proc;
+*np->tf = *proc->tf;
+//cprintf("proc count!!!!!!!!!!!!!!!     %d\n", proc->pages.memory.count);
+if (SELECTION != NONE){
 	createSwapFile(np);
-	//cprintf("proc count!!!!!!!!!!!!!!!     %d\n", proc->pages.memory.count);
-	if (SELECTION != NONE){
-		if (proc != initproc && proc != 0 && strncmp("sh",proc->name,3) && proc->swapFile != 0) {
-			char buf[PGSIZE/2];
-			int toRead;
-			for(i=0;i<30;i++){
-				toRead = readFromSwapFile(proc,buf,i*MAX_READ_SLICE,MAX_READ_SLICE);
-				writeToSwapFile(np,buf,i*MAX_READ_SLICE,toRead);
+	if (proc != initproc && proc != 0 && strncmp("sh",proc->name,3) && proc->swapFile != 0) {
+		char buf[MAX_READ_SLICE];
+		memset(buf, 0, MAX_READ_SLICE);
+		int toRead, j;
+		for(i=0;i<MAX_PSYC_PAGES;i++){
+			for (j = 0; j < PGSIZE; j+= MAX_READ_SLICE){
+				memset(buf, 0, MAX_READ_SLICE);
+				toRead = readFromSwapFile(proc,buf,i*PGSIZE+j,MAX_READ_SLICE);
+				writeToSwapFile(np,buf,i*PGSIZE+j,toRead);
 			}
-			//cprintf("proc pid = %d, proc name = %s proc swap = %p\n", proc->pid, proc->name, proc->swapFile);
-			//			np->pages = proc->pages;
-			int k;
-			for (k = 0; k < MAX_DISC_PAGES; k++){
-				np->pages.disk.pageTables[k].virtualAddress = proc->pages.disk.pageTables[k].virtualAddress;
-				np->pages.disk.pageTables[k].used = proc->pages.disk.pageTables[k].used;
-				np->pages.disk.pageTables[k].age = proc->pages.disk.pageTables[k].age;
-				np->pages.disk.pageTables[k].enterTime = proc->pages.disk.pageTables[k].enterTime;
-				if (k < MAX_PSYC_PAGES){
-					np->pages.memory.pageTables[k].virtualAddress = proc->pages.memory.pageTables[k].virtualAddress;
-					np->pages.memory.pageTables[k].used = proc->pages.memory.pageTables[k].used;
-					np->pages.memory.pageTables[k].age = proc->pages.memory.pageTables[k].age;
-					np->pages.memory.pageTables[k].enterTime = proc->pages.memory.pageTables[k].enterTime;
-				}
-			}
-
-			np->pages.debug = 0;
-			np->pages.disk.count = proc->pages.disk.count;
-			np->pages.memory.count = proc->pages.memory.count;
-			np->pages.pageFaults = proc->pages.pageFaults;
-			np->pages.totalPagedOut = proc->pages.totalPagedOut;
-			np->swapFile->ip = proc->swapFile->ip;
-			np->swapFile->type = proc->swapFile->type;
-			np->swapFile->off = proc->swapFile->off;
-			np->swapFile->readable = proc->swapFile->readable;
-			np->swapFile->writable = proc->swapFile->writable;
 		}
+		//cprintf("proc pid = %d, proc name = %s proc swap = %p\n", proc->pid, proc->name, proc->swapFile);
+		//			np->pages = proc->pages;
+		int k;
+		for (k = 0; k < MAX_DISC_PAGES; k++){
+			np->pages.disk.pageTables[k].virtualAddress = proc->pages.disk.pageTables[k].virtualAddress;
+			np->pages.disk.pageTables[k].used = proc->pages.disk.pageTables[k].used;
+			np->pages.disk.pageTables[k].age = proc->pages.disk.pageTables[k].age;
+			np->pages.disk.pageTables[k].enterTime = proc->pages.disk.pageTables[k].enterTime;
+			if (k < MAX_PSYC_PAGES){
+				np->pages.memory.pageTables[k].virtualAddress = proc->pages.memory.pageTables[k].virtualAddress;
+				np->pages.memory.pageTables[k].used = proc->pages.memory.pageTables[k].used;
+				np->pages.memory.pageTables[k].age = proc->pages.memory.pageTables[k].age;
+				np->pages.memory.pageTables[k].enterTime = proc->pages.memory.pageTables[k].enterTime;
+			}
+		}
+
+		np->pages.debug = 0;
+		np->pages.disk.count = proc->pages.disk.count;
+		np->pages.memory.count = proc->pages.memory.count;
+		np->pages.pageFaults = proc->pages.pageFaults;
+		np->pages.totalPagedOut = proc->pages.totalPagedOut;
+		np->swapFile->ip = proc->swapFile->ip;
+		np->swapFile->type = proc->swapFile->type;
+		np->swapFile->off = proc->swapFile->off;
+		np->swapFile->readable = proc->swapFile->readable;
+		np->swapFile->writable = proc->swapFile->writable;
 	}
+}
 
-	PRINT
-	// Clear %eax so that fork returns 0 in the child.
-	np->tf->eax = 0;
+PRINT
+// Clear %eax so that fork returns 0 in the child.
+np->tf->eax = 0;
 
-	for(i = 0; i < NOFILE; i++)
-		if(proc->ofile[i])
-			np->ofile[i] = filedup(proc->ofile[i]);
-	np->cwd = idup(proc->cwd);
-	//cprintf("parent name = %s\n", proc->name);
-	safestrcpy(np->name, proc->name, sizeof(proc->name));
+for(i = 0; i < NOFILE; i++)
+	if(proc->ofile[i])
+		np->ofile[i] = filedup(proc->ofile[i]);
+np->cwd = idup(proc->cwd);
+//cprintf("parent name = %s\n", proc->name);
+safestrcpy(np->name, proc->name, sizeof(proc->name));
 
-	pid = np->pid;
+pid = np->pid;
 
-	// lock to force the compiler to emit the np->state write last.
-	acquire(&ptable.lock);
-	np->state = RUNNABLE;
-	release(&ptable.lock);
+// lock to force the compiler to emit the np->state write last.
+acquire(&ptable.lock);
+np->state = RUNNABLE;
+release(&ptable.lock);
 
-	return pid;
+return pid;
 }
 
 // Exit the current process.  Does not return.
@@ -322,7 +325,8 @@ exit(void)
 						[RUNNING]   "run   ",
 						[ZOMBIE]    "zombie"
 				};
-				cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+				cprintf("%d %s %d %d %d %d %s\n", p->pid, states[p->state], p->pages.memory.count+p->pages.disk.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+				cprintf("%d% free pages in the system\n", (getKernelPages() - getCurrentPages())*100 / getKernelPages());
 			}
 
 		}
@@ -359,7 +363,8 @@ wait(void)
 							[RUNNING]   "run   ",
 							[ZOMBIE]    "zombie"
 					};
-					cprintf("%d %s %d %d %d %d %s", p->pid, states[p->state], p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+					cprintf("%d %s %d %d %d %d %s\n", p->pid, states[p->state], p->pages.memory.count+p->pages.disk.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+					cprintf("%d% free pages in the system\n", (getKernelPages() - getCurrentPages())*100 / getKernelPages());
 				}
 				toRemove.pid = p->pid;
 				toRemove.swapFile = p->swapFile;
@@ -406,25 +411,6 @@ wait(void)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
-//void
-//updateAge (struct proc* p){
-//	int i;
-//	pte_t * page;
-//	cprintf("GROW %x\n", GROW);
-//	for (i = 0; i < MAX_PSYC_PAGES; i++){
-//		if (p->pages.memory.pageTables[i].used == PAGE_USED){
-//			page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
-//			if (*page & PTE_A){	//check if reference bit is on
-//				*page = *page & ~PTE_A;		//turn reference off
-//				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
-//				p->pages.memory.pageTables[i].age += GROW;
-//			}
-//			else{
-//				p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
-//			}
-//		}
-//	}
-//}
 
 void
 scheduler(void)
@@ -444,17 +430,12 @@ scheduler(void)
 				for (i = 0; i < MAX_PSYC_PAGES; i++){
 					if (p->pages.memory.pageTables[i].used == PAGE_USED){
 						page = walkpgdir(p->pgdir,(char*) p->pages.memory.pageTables[i].virtualAddress,0);
+						p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;	//reduce weight of the past
 						if (*page & PTE_A){	//check if reference bit is on
 							*page = *page & ~PTE_A;		//turn reference off
-							p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
 							p->pages.memory.pageTables[i].age += GROW;
 						}
-						else{
-							*page = *page & ~PTE_A;		//turn reference off
-							p->pages.memory.pageTables[i].age = p->pages.memory.pageTables[i].age >> 1;
-						}
 					}
-					//					}
 				}
 			}
 		}
@@ -599,7 +580,7 @@ int
 kill(int pid)
 {
 	w(kill)
-																											struct proc *p;
+																													struct proc *p;
 
 	acquire(&ptable.lock);
 	for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -646,7 +627,7 @@ procdump(void)
 		if(SELECTION == NONE) {
 			cprintf("%d %s %s" ,p->pid, state, p->name);
 		} else {
-			cprintf("%d %s %d %d %d %d %s", p->pid, state, p->pages.memory.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
+			cprintf("%d %s %d %d %d %d %s\n", p->pid, state, p->pages.memory.count+p->pages.disk.count, p->pages.disk.count, p->pages.pageFaults, p->pages.totalPagedOut,p->name);
 		}
 		if(p->state == SLEEPING){
 			getcallerpcs((uint*)p->context->ebp+2, pc);
