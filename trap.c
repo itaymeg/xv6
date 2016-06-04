@@ -55,6 +55,7 @@ trap(struct trapframe *tf)
 	char * retrievedPageMem;
 	uint pageToRetrieve;
 
+
 	if(tf->trapno == T_SYSCALL){
 		if(proc->killed)
 			exit();
@@ -139,8 +140,11 @@ trap(struct trapframe *tf)
 					cprintf("allocuvm out of memory\n");
 					return;
 				}
-				readFromSwapFile(proc,retrievedPageMem,diskPageIdx*PGSIZE,PGSIZE);
+				memset(retrievedPageMem,0,PGSIZE); // clear newly allocated page
 				mappages(proc->pgdir, (char*) pageToRetrieve, PGSIZE, v2p(retrievedPageMem), PTE_W|PTE_U);
+				pte_t * newPTentry = walkpgdir(proc->pgdir,(char *)pageToRetrieve,0);
+				readFromSwapFile(proc,(char*)p2v(PTE_ADDR(*(newPTentry)))/*retrievedPageMem*/,diskPageIdx*PGSIZE,PGSIZE);
+
 				int t = ticks;
 				proc->pages.disk.count--;
 				proc->pages.disk.pageTables[diskPageIdx].used = PAGE_UNUSED;
