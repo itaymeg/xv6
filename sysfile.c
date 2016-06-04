@@ -162,7 +162,7 @@ bad:
 }
 
 // Is the directory dp empty except for "." and ".." ?
-int
+static int
 isdirempty(struct inode *dp)
 {
   int off;
@@ -194,13 +194,15 @@ sys_unlink(void)
     end_op();
     return -1;
   }
+
   ilock(dp);
+
   // Cannot unlink "." or "..".
   if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
     goto bad;
-  if((ip = dirlookup(dp, name, &off)) == 0){
+
+  if((ip = dirlookup(dp, name, &off)) == 0)
     goto bad;
-  }
   ilock(ip);
 
   if(ip->nlink < 1)
@@ -233,7 +235,7 @@ bad:
   return -1;
 }
 
-struct inode*
+static struct inode*
 create(char *path, short type, short major, short minor)
 {
   uint off;

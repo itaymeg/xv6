@@ -1,11 +1,5 @@
 // Segments in proc->gdt.
 #define NSEGS     7
-#define PAGE_USED 1
-#define PAGE_UNUSED 0
-#define MAX_PSYC_PAGES 15
-#define MAX_DISC_PAGES 15
-#define MAX_TOTAL_PAGES
-#define GROW	1 << 31
 
 // Per-CPU state
 struct cpu {
@@ -55,33 +49,6 @@ struct context {
   uint eip;
 };
 
-typedef struct page {
-	int used;
-	int enterTime;
-	int age;
-	uint virtualAddress;
-} page;
-
-typedef struct pages_data{
-	int count;
-	page pageTables[MAX_PSYC_PAGES];
-} pages_data;
-
-typedef struct pages_data_disk{
-	int count;
-	page pageTables[MAX_DISC_PAGES];
-} pages_data_disk;
-
-typedef struct pages_info {
-	pages_data memory;
-	pages_data_disk disk;
-	uint pageFaults;
-	uint totalPagedOut;
-	int debug;
-} pages_info;
-
-
-
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -99,11 +66,6 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  pages_info pages;         // Pages in Memory
-
-  //Swap file. must initiate with create swap file
-  struct file *swapFile;			//page file
-
 };
 
 // Process memory is laid out contiguously, low addresses first:

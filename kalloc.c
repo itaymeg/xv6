@@ -9,7 +9,6 @@
 #include "mmu.h"
 #include "spinlock.h"
 
-
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
 
@@ -22,26 +21,6 @@ struct {
   int use_lock;
   struct run *freelist;
 } kmem;
-
-uint currentPages = 0;
-uint kernelPages = 0;
-
-uint	getCurrentPages(void){
-	return currentPages;
-}
-uint	getKernelPages(void){
-	return kernelPages;
-}
-
-void calcKernelPages() {
-	struct run * memList = kmem.freelist;
-	while(memList != 0) {
-		kernelPages++;
-		currentPages++;
-		memList = memList->next;
-	}
-}
-
 
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
@@ -93,7 +72,6 @@ kfree(char *v)
   r = (struct run*)v;
   r->next = kmem.freelist;
   kmem.freelist = r;
-  currentPages--;
   if(kmem.use_lock)
     release(&kmem.lock);
 }
@@ -113,7 +91,6 @@ kalloc(void)
     kmem.freelist = r->next;
   if(kmem.use_lock)
     release(&kmem.lock);
-  currentPages++;
   return (char*)r;
 }
 

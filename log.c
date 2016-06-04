@@ -48,18 +48,18 @@ struct log log;
 
 static void recover_from_log(void);
 static void commit();
-
+extern int partitionindex;
+struct superblock sb[4];
+  
 void
 initlog(int dev)
 {
   if (sizeof(struct logheader) >= BSIZE)
     panic("initlog: too big logheader");
-
-  struct superblock sb;
   initlock(&log.lock, "log");
-  readsb(dev, &sb);
-  log.start = sb.logstart;
-  log.size = sb.nlog;
+  readsb(dev, sb);
+  log.start = sb[partitionindex].logstart  + sb[partitionindex].offset;
+  log.size = sb[partitionindex].nlog;
   log.dev = dev;
   recover_from_log();
 }

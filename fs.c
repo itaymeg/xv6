@@ -19,19 +19,48 @@
 #include "fs.h"
 #include "buf.h"
 #include "file.h"
+#include "mbr.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 static void itrunc(struct inode*);
-struct superblock sb;   // there should be one per dev, but we run with one dev
+struct superblock sb[4];   // there should be one per dev, but we run with one dev
+struct mbr mbr;
+int partitionoffset;
+int partitionindex;
+
+
+struct mount_point{
+  int partition;
+  int used;
+  struct inode *inode;
+  char path[100];
+};
+
+struct mount_point mount_table[200*4];
+
 
 // Read the super block.
 void
 readsb(int dev, struct superblock *sb)
 {
+  int i=0;
   struct buf *bp;
-  
-  bp = bread(dev, 1);
-  memmove(sb, bp->data, sizeof(*sb));
+  for(i=0;i<4;i++){ 
+    if(mbr.partitions[i].flags & PART_ALLOCATED){
+      bp = bread(dev,mbr.partitions[i].offset);
+      memmove(&sb[i], bp->data, sizeof(sb[i]));
+      sb[i].offset = mbr.partitions[i].offset;
+      brelse(bp);
+    }
+  }
+}
+
+void
+readmbr(struct mbr *mbr)
+{
+  struct buf *bp;
+  bp = bread(ROOTDEV, 0);
+  memmove(mbr, bp->data, sizeof(*mbr));
   brelse(bp);
 }
 
@@ -41,7 +70,7 @@ bzero(int dev, int bno)
 {
   struct buf *bp;
   
-  bp = bread(dev, bno);
+  bp = bread(dev, bno + partitionoffset);
   memset(bp->data, 0, BSIZE);
   log_write(bp);
   brelse(bp);
@@ -57,9 +86,9 @@ balloc(uint dev)
   struct buf *bp;
 
   bp = 0;
-  for(b = 0; b < sb.size; b += BPB){
-    bp = bread(dev, BBLOCK(b, sb));
-    for(bi = 0; bi < BPB && b + bi < sb.size; bi++){
+  for(b = 0; b < sb[partitionindex].size; b += BPB){
+    bp = bread(dev, BBLOCK(b, sb[partitionindex])+partitionoffset);
+    for(bi = 0; bi < BPB && b + bi < sb[partitionindex].size; bi++){
       m = 1 << (bi % 8);
       if((bp->data[bi/8] & m) == 0){  // Is block free?
         bp->data[bi/8] |= m;  // Mark block in use.
@@ -81,8 +110,8 @@ bfree(int dev, uint b)
   struct buf *bp;
   int bi, m;
 
-  readsb(dev, &sb);
-  bp = bread(dev, BBLOCK(b, sb));
+  readsb(dev, &sb[partitionindex]);
+  bp = bread(dev, BBLOCK(b, sb[partitionindex])+partitionoffset);
   bi = b % BPB;
   m = 1 << (bi % 8);
   if((bp->data[bi/8] & m) == 0)
@@ -162,13 +191,42 @@ struct {
 void
 iinit(int dev)
 {
+  int i=0;
+  char *type;
   initlock(&icache.lock, "icache");
-  readsb(dev, &sb);
-  cprintf("sb: size %d nblocks %d ninodes %d nlog %d logstart %d inodestart %d bmap start %d\n", sb.size,
-          sb.nblocks, sb.ninodes, sb.nlog, sb.logstart, sb.inodestart, sb.bmapstart);
+  readmbr(&mbr);
+  for(i=0;i<200*4;i++){
+    mount_table[i].used =0;
+  }
+  for(i=0;i<4;i++){ 
+    if(mbr.partitions[i].flags & PART_BOOTABLE){
+      partitionoffset = mbr.partitions[i].offset;
+      partitionindex = i;
+      break;
+    }
+  }
+  for(i=0;i<4;i++){ 
+      if(mbr.partitions[i].flags & PART_ALLOCATED){
+	if(mbr.partitions[i].type == FS_INODE){
+	  type = "INODE";
+	}else{
+	  type = "FAT";
+	}
+	if(mbr.partitions[i].flags & PART_BOOTABLE){
+	  cprintf("Partition %d: bootable YES, type %s, offset %d, size %d\n",i,type,mbr.partitions[i].offset,mbr.partitions[i].size);
+	}
+	else{
+	  cprintf("Partition %d: bootable NO, type %s, offset %d, size %d\n",i,type,mbr.partitions[i].offset,mbr.partitions[i].size);
+	}
+      }
+  }
+  
+  readsb(dev,sb);
+  cprintf("sb: size %d nblocks %d ninodes %d nlog %d logstart %d inodestart %d bmap start %d\n", sb[partitionindex].size,
+          sb[partitionindex].nblocks, sb[partitionindex].ninodes, sb[partitionindex].nlog, sb[partitionindex].logstart, sb[partitionindex].inodestart, sb[partitionindex].bmapstart);
 }
 
-static struct inode* iget(uint dev, uint inum);
+static struct inode* iget(uint dev, uint inum,uint partition);
 
 //PAGEBREAK!
 // Allocate a new inode with the given type on device dev.
@@ -180,15 +238,15 @@ ialloc(uint dev, short type)
   struct buf *bp;
   struct dinode *dip;
 
-  for(inum = 1; inum < sb.ninodes; inum++){
-    bp = bread(dev, IBLOCK(inum, sb));
+  for(inum = 1; inum < sb[partitionindex].ninodes; inum++){
+    bp = bread(dev, IBLOCK(inum, sb[partitionindex])+partitionoffset);
     dip = (struct dinode*)bp->data + inum%IPB;
     if(dip->type == 0){  // a free inode
       memset(dip, 0, sizeof(*dip));
       dip->type = type;
       log_write(bp);   // mark it allocated on the disk
       brelse(bp);
-      return iget(dev, inum);
+      return iget(dev, inum,partitionindex);
     }
     brelse(bp);
   }
@@ -202,7 +260,7 @@ iupdate(struct inode *ip)
   struct buf *bp;
   struct dinode *dip;
 
-  bp = bread(ip->dev, IBLOCK(ip->inum, sb));
+  bp = bread(ip->dev, IBLOCK(ip->inum, sb[partitionindex])+partitionoffset);
   dip = (struct dinode*)bp->data + ip->inum%IPB;
   dip->type = ip->type;
   dip->major = ip->major;
@@ -218,7 +276,7 @@ iupdate(struct inode *ip)
 // and return the in-memory copy. Does not lock
 // the inode and does not read it from disk.
 static struct inode*
-iget(uint dev, uint inum)
+iget(uint dev, uint inum, uint partition)
 {
   struct inode *ip, *empty;
 
@@ -227,7 +285,8 @@ iget(uint dev, uint inum)
   // Is the inode already cached?
   empty = 0;
   for(ip = &icache.inode[0]; ip < &icache.inode[NINODE]; ip++){
-    if(ip->ref > 0 && ip->dev == dev && ip->inum == inum){
+    
+    if(ip->ref > 0 && ip->dev == dev && ip->inum == inum && ip->partition == partition){
       ip->ref++;
       release(&icache.lock);
       return ip;
@@ -242,6 +301,7 @@ iget(uint dev, uint inum)
 
   ip = empty;
   ip->dev = dev;
+  ip->partition = partition;
   ip->inum = inum;
   ip->ref = 1;
   ip->flags = 0;
@@ -249,6 +309,9 @@ iget(uint dev, uint inum)
 
   return ip;
 }
+
+
+
 
 // Increment reference count for ip.
 // Returns ip to enable ip = idup(ip1) idiom.
@@ -279,7 +342,7 @@ ilock(struct inode *ip)
   release(&icache.lock);
 
   if(!(ip->flags & I_VALID)){
-    bp = bread(ip->dev, IBLOCK(ip->inum, sb));
+    bp = bread(ip->dev, IBLOCK(ip->inum, sb[partitionindex])+partitionoffset);
     dip = (struct dinode*)bp->data + ip->inum%IPB;
     ip->type = dip->type;
     ip->major = dip->major;
@@ -329,6 +392,7 @@ iput(struct inode *ip)
     iupdate(ip);
     acquire(&icache.lock);
     ip->flags = 0;
+    ip->partition = -1;
     wakeup(ip);
   }
   ip->ref--;
@@ -370,7 +434,7 @@ bmap(struct inode *ip, uint bn)
     // Load indirect block, allocating if necessary.
     if((addr = ip->addrs[NDIRECT]) == 0)
       ip->addrs[NDIRECT] = addr = balloc(ip->dev);
-    bp = bread(ip->dev, addr);
+    bp = bread(ip->dev, addr+partitionoffset);
     a = (uint*)bp->data;
     if((addr = a[bn]) == 0){
       a[bn] = addr = balloc(ip->dev);
@@ -403,7 +467,7 @@ itrunc(struct inode *ip)
   }
   
   if(ip->addrs[NDIRECT]){
-    bp = bread(ip->dev, ip->addrs[NDIRECT]);
+    bp = bread(ip->dev, ip->addrs[NDIRECT]+partitionoffset);
     a = (uint*)bp->data;
     for(j = 0; j < NINDIRECT; j++){
       if(a[j])
@@ -449,7 +513,7 @@ readi(struct inode *ip, char *dst, uint off, uint n)
     n = ip->size - off;
 
   for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+    bp = bread(ip->dev, bmap(ip, off/BSIZE)+partitionoffset);
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(dst, bp->data + off%BSIZE, m);
     brelse(bp);
@@ -477,7 +541,7 @@ writei(struct inode *ip, char *src, uint off, uint n)
     return -1;
 
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+    bp = bread(ip->dev, bmap(ip, off/BSIZE)+partitionoffset);
     m = min(n - tot, BSIZE - off%BSIZE);
     memmove(bp->data + off%BSIZE, src, m);
     log_write(bp);
@@ -507,6 +571,7 @@ dirlookup(struct inode *dp, char *name, uint *poff)
 {
   uint off, inum;
   struct dirent de;
+  int i;
 
   if(dp->type != T_DIR)
     panic("dirlookup not DIR");
@@ -521,7 +586,14 @@ dirlookup(struct inode *dp, char *name, uint *poff)
       if(poff)
         *poff = off;
       inum = de.inum;
-      return iget(dp->dev, inum);
+      // if mount
+      for(i=0*(dp->partition);i<200*(dp->partition+1);i++){
+	if(mount_table[i].inode->inum == inum && mount_table[i].used ==1){
+	  //cprintf("**************dirlookup *******name: %s mounted to partition: %d\n",name,mount_table[i].partition);
+	  return iget(dp->dev,ROOTINO,mount_table[i].partition);
+	}
+      }
+      return iget(dp->dev, inum,dp->partition);
     }
   }
 
@@ -602,13 +674,14 @@ skipelem(char *path, char *name)
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
+
 static struct inode*
 namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
 
   if(*path == '/')
-    ip = iget(ROOTDEV, ROOTINO);
+    ip = iget(ROOTDEV, ROOTINO,partitionindex);
   else
     ip = idup(proc->cwd);
 
@@ -650,143 +723,50 @@ nameiparent(char *path, char *name)
   return namex(path, 1, name);
 }
 
-#include "fcntl.h"
-#define DIGITS 14
 
-char* itoa(int i, char b[]){
-    char const digit[] = "0123456789";
-    char* p = b;
-    if(i<0){
-        *p++ = '-';
-        i *= -1;
+int 
+mount(char* path, uint partition){
+  int i;
+  if(mbr.partitions[partition].flags & PART_ALLOCATED){
+    for(i=0;i<4*200;i++){
+      if(strncmp(mount_table[i].path,path,strlen(path))==0){
+	mount_table[i].used=0;
+	break;
+      }
     }
-    int shifter = i;
-    do{ //Move to where representation ends
-        ++p;
-        shifter = shifter/10;
-    }while(shifter);
-    *p = '\0';
-    do{ //Move back, inserting digits as u go
-        *--p = digit[i%10];
-        i = i/10;
-    }while(i);
-    return b;
-}
-//remove swap file of proc p;
-int
-removeSwapFile(struct proc* p)
-{
-	//path of proccess
-	//cprintf("remove\n");
-	char path[DIGITS];
-	memmove(path,"/.swap", 6);
-	itoa(p->pid, path+ 6);
-
-	struct inode *ip, *dp;
-	struct dirent de;
-	char name[DIRSIZ];
-	uint off;
-
-	if(0 == p->swapFile)
-	{
-		return -1;
+    for(i=200*(proc->cwd->partition);i<200*((proc->cwd->partition)+1);i++){
+      if(mount_table[i].used == 0){
+	mount_table[i].used=1;
+	mount_table[i].partition =partition;
+	memset(mount_table[i].path,0,100);
+	strncpy(mount_table[i].path,path,strlen(path));
+	mount_table[i].inode = namei(path); 
+	if(mount_table[i].inode ==0){
+	  mount_table[i].used=0;
+	  cprintf("not exist\n");
+	  return -1;
 	}
-	fileclose(p->swapFile);
-
-	begin_op();
-	if((dp = nameiparent(path, name)) == 0)
-	{
-		end_op();
-		return -1;
-	}
-
-	ilock(dp);
-
-	  // Cannot unlink "." or "..".
-	if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
-	   goto bad;
-
-	if((ip = dirlookup(dp, name, &off)) == 0)
-		goto bad;
-	ilock(ip);
-
-	if(ip->nlink < 1)
-		panic("unlink: nlink < 1");
-	if(ip->type == T_DIR && !isdirempty(ip)){
-		iunlockput(ip);
-		goto bad;
-	}
-
-	memset(&de, 0, sizeof(de));
-	if(writei(dp, (char*)&de, off, sizeof(de)) != sizeof(de))
-		panic("unlink: writei");
-	if(ip->type == T_DIR){
-		dp->nlink--;
-		iupdate(dp);
-	}
-	iunlockput(dp);
-
-	ip->nlink--;
-	iupdate(ip);
-	iunlockput(ip);
-
-	end_op();
-
 	return 0;
-
-	bad:
-		iunlockput(dp);
-		end_op();
-		return -1;
-
+      }
+    }
+    cprintf("all in use\n");
+    return -1;
+  }
+  cprintf("not allocated\n");
+  return -1;
 }
 
 
-//return 0 on success
-int
-createSwapFile(struct proc* p)
-{
-	//cprintf("create\n");
-	char path[DIGITS];
-	memmove(path,"/.swap", 6);
-	itoa(p->pid, path+ 6);
 
-    begin_op();
-    struct inode * in = create(path, T_FILE, 0, 0);
-	iunlock(in);
 
-	p->swapFile = filealloc();
-	if (p->swapFile == 0)
-		panic("no slot for files on /store");
 
-	p->swapFile->ip = in;
-	p->swapFile->type = FD_INODE;
-	p->swapFile->off = 0;
-	p->swapFile->readable = O_WRONLY;
-	p->swapFile->writable = O_RDWR;
-    end_op();
 
-    return 0;
-}
 
-//return as sys_write (-1 when error)
-int
-writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
-{
-	//cprintf("write\n");
-	p->swapFile->off = placeOnFile;
 
-	return filewrite(p->swapFile, buffer, size);
 
-}
 
-//return as sys_read (-1 when error)
-int
-readFromSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
-{
-//	cprintf("read\n");
-	p->swapFile->off = placeOnFile;
-	//cprintf("proc pid = %d\n", proc->pid);
-	return fileread(p->swapFile, buffer,  size);
-}
+
+
+
+
 

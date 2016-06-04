@@ -5,16 +5,11 @@
 #define NFILE       100  // open files per system
 #define NINODE       50  // maximum number of active i-nodes
 #define NDEV         10  // maximum major device number
-#define ROOTDEV       1  // device number of file system root disk
+#define ROOTDEV       0  // device number of file system root disk
 #define MAXARG       32  // max exec arguments
 #define MAXOPBLOCKS  10  // max # of blocks any FS op writes
 #define LOGSIZE      (MAXOPBLOCKS*3)  // max data blocks in on-disk log
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
-#define FSSIZE       1000  // size of file system in blocks
-#define FIFO         1
-#define SCFIFO       2
-#define NFU          3
-#define NONE         4
-#define FALSE        0
-#define TRUE         1
+#define FSSIZE       4500  // size of file system in blocks
+#define PSIZE        1000 // size of partition in blocks
 

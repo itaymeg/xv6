@@ -56,6 +56,7 @@ void
 fileclose(struct file *f)
 {
   struct file ff;
+
   acquire(&ftable.lock);
   if(f->ref < 1)
     panic("fileclose");
@@ -107,7 +108,6 @@ fileread(struct file *f, char *addr, int n)
     iunlock(f->ip);
     return r;
   }
-  cprintf("type is: %d\n", f->type);
   panic("fileread");
 }
 

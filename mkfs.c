@@ -10,6 +10,7 @@
 #include "fs.h"
 #include "stat.h"
 #include "param.h"
+#include "mbr.h"
 
 #ifndef static_assert
 #define static_assert(a, b) do { switch (0) case 0: case (a): ; } while (0)
@@ -28,9 +29,11 @@ int nblocks;  // Number of data blocks
 
 int fsfd;
 struct superblock sb;
+struct mbr mbr;
 char zeroes[BSIZE];
 uint freeinode = 1;
 uint freeblock;
+int partitionoffset = 0;
 
 
 void balloc(int);
@@ -67,16 +70,24 @@ xint(uint x)
 int
 main(int argc, char *argv[])
 {
-  int i, cc, fd;
+  int i, cc, fd,j,k;
   uint rootino, inum, off;
   struct dirent de;
   char buf[BSIZE];
   struct dinode din;
+  int kernel;
+  int countkernel = 1;
+  int bootblock;
+  char buf1[BSIZE];
+  char boot[BSIZE];
+  int bootablefound=0;
+  int hasinit = 0;
+  int hassh = 0;
 
 
   static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
 
-  if(argc < 2){
+  if(argc < 4){
     fprintf(stderr, "Usage: mkfs fs.img files...\n");
     exit(1);
   }
@@ -89,88 +100,151 @@ main(int argc, char *argv[])
     perror(argv[1]);
     exit(1);
   }
-
-  // 1 fs block = 1 disk sector
-  nmeta = 2 + nlog + ninodeblocks + nbitmap;
-  nblocks = FSSIZE - nmeta;
-
-  sb.size = xint(FSSIZE);
-  sb.nblocks = xint(nblocks);
-  sb.ninodes = xint(NINODES);
-  sb.nlog = xint(nlog);
-  sb.logstart = xint(2);
-  sb.inodestart = xint(2+nlog);
-  sb.bmapstart = xint(2+nlog+ninodeblocks);
-
-  printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
-         nmeta, nlog, ninodeblocks, nbitmap, nblocks, FSSIZE);
-
-  freeblock = nmeta;     // the first free block that we can allocate
-
-  for(i = 0; i < FSSIZE; i++)
+ 
+  bootblock = open(argv[2],0);
+  if(bootblock < 0){
+    perror(argv[2]);
+    exit(1);
+  }
+  read(bootblock,boot,BSIZE);
+  memmove(mbr.bootstrap, boot, BSIZE);
+  mbr.magic[0] = boot[BSIZE-2];
+  mbr.magic[1] = boot[BSIZE-1];
+  close(bootblock);
+  
+  
+  for(i = 0; i < 5000; i++){
+    partitionoffset = 0;
     wsect(i, zeroes);
+  }
+  
+  kernel = open(argv[3],0);
+  if(kernel < 0){
+    perror(argv[3]);
+    exit(1);
+  }
+  while(read(kernel,buf1,BSIZE)>0){
+   wsect(countkernel,buf1);
+    countkernel++;
+    memset(buf1, 0, sizeof(buf1));
+  }
+  
+  close(kernel);
+  // 1 fs block = 1 disk sector
 
-  memset(buf, 0, sizeof(buf));
-  memmove(buf, &sb, sizeof(sb));
-  wsect(1, buf);
 
-  rootino = ialloc(T_DIR);
-  assert(rootino == ROOTINO);
-
-  bzero(&de, sizeof(de));
-  de.inum = xshort(rootino);
-  strcpy(de.name, ".");
-  iappend(rootino, &de, sizeof(de));
-
-  bzero(&de, sizeof(de));
-  de.inum = xshort(rootino);
-  strcpy(de.name, "..");
-  iappend(rootino, &de, sizeof(de));
-
-  for(i = 2; i < argc; i++){
-    assert(index(argv[i], '/') == 0);
-
-    if((fd = open(argv[i], 0)) < 0){
-      perror(argv[i]);
-      exit(1);
-    }
+  for(i=0;i<NPARTITIONS;i++){	
+    nmeta = 1 + nlog + ninodeblocks + nbitmap;
+    nblocks = PSIZE - nmeta;
     
-    // Skip leading _ in name when writing to file system.
-    // The binaries are named _rm, _cat, etc. to keep the
-    // build operating system from trying to execute them
-    // in place of system binaries like rm and cat.
-    if(argv[i][0] == '_')
-      ++argv[i];
-
-    inum = ialloc(T_FILE);
+    freeinode = 1;
+    bzero(&de, sizeof(de));
+    
+    mbr.partitions[i].flags = PART_ALLOCATED;
+    mbr.partitions[i].type = FS_INODE;
+    mbr.partitions[i].offset = countkernel+PSIZE*i;
+    mbr.partitions[i].size = PSIZE;
+    
+    sb.size = xint(PSIZE);
+    sb.nblocks = xint(nblocks);
+    sb.ninodes = xint(NINODES);
+    sb.nlog = xint(nlog);
+    sb.logstart = xint(1);
+    sb.inodestart = xint(1+nlog);
+    sb.bmapstart = xint(1+nlog+ninodeblocks);
+    
+    
+    printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
+         nmeta, nlog, ninodeblocks, nbitmap, nblocks,PSIZE);
+    
+    freeblock = nmeta;     // the first free block that we can allocate
+    
+    memset(buf, 0, sizeof(buf));
+    memmove(buf, &sb, sizeof(sb));
+    partitionoffset = mbr.partitions[i].offset;
+    wsect(0, buf);
+    
+    
+    rootino = ialloc(T_DIR);
+    assert(rootino == ROOTINO);
 
     bzero(&de, sizeof(de));
-    de.inum = xshort(inum);
-    strncpy(de.name, argv[i], DIRSIZ);
+    de.inum = xshort(rootino);
+    strcpy(de.name, ".");
     iappend(rootino, &de, sizeof(de));
 
-    while((cc = read(fd, buf, sizeof(buf))) > 0)
-      iappend(inum, buf, cc);
+    bzero(&de, sizeof(de));
+    de.inum = xshort(rootino);
+    strcpy(de.name, "..");
+    iappend(rootino, &de, sizeof(de));
 
-    close(fd);
+    for(j = 4; j < argc; j++){
+      assert(index(argv[j], '/') == 0);
+
+      if((fd = open(argv[j], 0)) < 0){
+	perror(argv[j]);
+	exit(1);
+      }
+      
+      char filename[strlen(argv[j])];
+      strncpy(filename,argv[j],strlen(argv[j]));
+      if(filename[0] == '_'){
+        for(k=1; k < strlen(argv[j]); k++){
+          filename[k-1] = argv[j][k];
+        }
+        filename[strlen(argv[j])-1] = 0;
+      }
+      if(strncmp(filename,"sh",3) == 0){
+	hassh = 1;
+      }
+      if(strncmp(filename,"init",5) == 0){
+	hasinit=1;
+      }
+      // Skip leading _ in name when writing to file system.
+      // The binaries are named _rm, _cat, etc. to keep the
+      // build operating system from trying to execute them
+      // in place of system binaries like rm and cat.
+
+      inum = ialloc(T_FILE);
+
+      bzero(&de, sizeof(de));
+      de.inum = xshort(inum);
+      strncpy(de.name,filename, DIRSIZ);
+      iappend(rootino, &de, sizeof(de));
+
+      while((cc = read(fd, buf, sizeof(buf))) > 0)
+	iappend(inum, buf, cc);
+
+      close(fd);
+    }
+
+    if( hassh ==1 && hasinit == 1 && bootablefound == 0){
+      mbr.partitions[i].flags |= PART_BOOTABLE;
+      bootablefound = 1;
+    }
+
+    // fix size of root inode dir
+    rinode(rootino, &din);
+    off = xint(din.size);
+    off = ((off/BSIZE) + 1) * BSIZE;
+    din.size = xint(off);
+    winode(rootino, &din);
+
+    balloc(freeblock);
   }
 
-  // fix size of root inode dir
-  rinode(rootino, &din);
-  off = xint(din.size);
-  off = ((off/BSIZE) + 1) * BSIZE;
-  din.size = xint(off);
-  winode(rootino, &din);
-
-  balloc(freeblock);
-
+  memset(buf, 0, sizeof(buf));
+  memmove(buf, &mbr, sizeof(mbr));
+  partitionoffset = 0;
+  wsect(0, buf);
+  
   exit(0);
 }
 
 void
 wsect(uint sec, void *buf)
 {
-  if(lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE){
+  if(lseek(fsfd, (sec + partitionoffset)* BSIZE, 0) != (sec+partitionoffset) * BSIZE){
     perror("lseek");
     exit(1);
   }
@@ -210,7 +284,7 @@ rinode(uint inum, struct dinode *ip)
 void
 rsect(uint sec, void *buf)
 {
-  if(lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE){
+  if(lseek(fsfd, (sec+partitionoffset) * BSIZE, 0) != (sec+partitionoffset) * BSIZE){
     perror("lseek");
     exit(1);
   }

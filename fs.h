@@ -18,12 +18,12 @@ struct superblock {
   uint logstart;     // Block number of first log block
   uint inodestart;   // Block number of first inode block
   uint bmapstart;    // Block number of first free map block
+  uint offset;
 };
 
 #define NDIRECT 12
 #define NINDIRECT (BSIZE / sizeof(uint))
 #define MAXFILE (NDIRECT + NINDIRECT)
-#define MAX_READ_SLICE 128
 
 // On-disk inode structure
 struct dinode {
