@@ -580,6 +580,119 @@ index ee94cdb..01494fb 100644
  
  };
  
+diff --git a/sanity.c b/sanity.c
+new file mode 100644
+index 0000000..9508450
+--- /dev/null
++++ b/sanity.c
+@@ -0,0 +1,51 @@
++#include "param.h"
++#include "types.h"
++#include "stat.h"
++#include "user.h"
++#include "fs.h"
++#include "fcntl.h"
++#include "syscall.h"
++#include "traps.h"
++#include "memlayout.h"
++
++#define PGSIZE 4096
++#define COUNT 20
++
++char* m1[COUNT];
++
++volatile int
++main(int argc, char *argv[])
++{
++  
++ 
++
++  int i,j,k;
++
++  //creating 'COUNT' pages
++  for (i = 0; i < COUNT ; ++i)
++  {
++    k=0;
++  m1[i] = sbrk(PGSIZE);
++
++  printf(1, "allocated page #%d at address: %x\n", i, m1[i]);
++  while(k<100000000)
++    k++;
++  printf(1,"continue\n");
++  }
++
++  printf(1,"Finished allocating pages\n");
++  //using all pages
++  for ( i = 0; i < COUNT; ++i)
++  {
++    for ( j = 0; j < PGSIZE; ++j)
++    {
++      m1[i][j] = 0;
++    }
++  }
++
++  printf(1,"Finished Successfuly!!!\n");
++
++
++  exit();
++  return 0;
++} 
+diff --git a/testMassive.c b/testMassive.c
+new file mode 100644
+index 0000000..c6cbc02
+--- /dev/null
++++ b/testMassive.c
+@@ -0,0 +1,50 @@
++#include "types.h"
++#include "stat.h"
++#include "user.h"
++
++int
++main(int argc, char *argv[])
++{
++    int n=20;
++    void * pages[n];
++    
++    int pid1;
++    int pid2;
++    
++    pid1=fork();
++    
++    int i;
++    for (i=0; i<n; i++) {
++        printf(1,"$$$$$$$$$$$$$$$$$         sbrk loop   %d  before         pid = %d \n",i,getpid());
++        pages[i]=sbrk(4096);
++        printf(1,"$$$$$$$$$$$$$$$$$         sbrk loop   %d   0x%x after    pid=%d\n",i,(int)pages[i],getpid());
++    }
++    
++       printf(1,"--------------------------------------------------------$$$$$$$$$$$$$$$$$$$$$$----------------------------------AFTER \n");
++    
++    for (i=0; i<n; i++) {
++        *(int *)pages[i] = i;
++        printf(1,"\n$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$         use loop   %d   pid= %d  \n",i,getpid());
++    }
++      printf(1,"--------------------------------------------------BEFORE SECOND FORK\n");
++    pid2=fork();
++    
++    printf(1,"-------------------------------------------AFTER SECOND FORK\n");
++    
++    for (i=0; i<n; i++) {
++       printf(1,"\n\n\n------------------TEST MASSIVE %d   pid %d\n\n\n", *((int *)pages[i]),getpid() );
++    }
++     printf(1,"\n\n\n-----------------------------------------------------BEFORE WAIT\n\n\n\n");
++   
++    if(pid1>0)
++        wait();
++    
++    if (pid2>0)
++        wait();
++
++  
++   printf(1,"--------------------------AFTER WAIT\n");
++ 
++    exit();
++}
++ 
 diff --git a/trap.c b/trap.c
 index 3f80145..3c84f5b 100644
 --- a/trap.c
@@ -764,7 +877,7 @@ index 22a7bfb..1fe42fe 100644
    preempt();
    exitwait();
 diff --git a/vm.c b/vm.c
-index 5326d14..c186376 100644
+index 5326d14..677ad78 100644
 --- a/vm.c
 +++ b/vm.c
 @@ -10,6 +10,7 @@
@@ -775,7 +888,7 @@ index 5326d14..c186376 100644
  
  // Set up CPU's kernel segment descriptors.
  // Run once on entry on each CPU.
-@@ -215,6 +216,96 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
+@@ -215,6 +216,101 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
    return 0;
  }
  
@@ -784,7 +897,7 @@ index 5326d14..c186376 100644
 +  int i,minctime=ticks+1;
 +  int minProc=-1;
 +  pte_t *pte;
-+  int minAging = 257;
++  int minAging;
 +  
 +  if(SELECTION==FIFO){
 +    for(i=0;i<15;i++){
@@ -820,6 +933,11 @@ index 5326d14..c186376 100644
 +  }
 +  else if(SELECTION==NFU){
 +//     cprintf("--------- findPageToSwap: choose page by NFU -------------\n");
++    for(i=0;i<15;i++){
++      if(proc->existInRAM[i]==0)
++	continue;
++      minAging = proc->pagesInRAM[i].aging;
++    }
 +    for(i=0;i<15;i++){
 +      if(proc->existInRAM[i]==0)
 +	continue;
@@ -872,7 +990,7 @@ index 5326d14..c186376 100644
  // Allocate page tables and physical memory to grow process from oldsz to
  // newsz, which need not be page aligned.  Returns new size or 0 on error.
  int
-@@ -222,6 +313,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+@@ -222,6 +318,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
  {
    char *mem;
    uint a;
@@ -880,7 +998,7 @@ index 5326d14..c186376 100644
  
    if(newsz >= KERNBASE)
      return 0;
-@@ -230,6 +322,15 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+@@ -230,6 +327,15 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
  
    a = PGROUNDUP(oldsz);
    for(; a < newsz; a += PGSIZE){
@@ -896,7 +1014,7 @@ index 5326d14..c186376 100644
      mem = kalloc();
      if(mem == 0){
        cprintf("allocuvm out of memory\n");
-@@ -238,10 +339,21 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+@@ -238,10 +344,21 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
      }
      memset(mem, 0, PGSIZE);
      mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
@@ -918,7 +1036,7 @@ index 5326d14..c186376 100644
  // Deallocate user pages to bring the process size from oldsz to
  // newsz.  oldsz and newsz need not be page-aligned, nor does newsz
  // need to be less than oldsz.  oldsz can be larger than the actual
-@@ -251,6 +363,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+@@ -251,6 +368,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
  {
    pte_t *pte;
    uint a, pa;
@@ -926,7 +1044,7 @@ index 5326d14..c186376 100644
  
    if(newsz >= oldsz)
      return oldsz;
-@@ -265,6 +378,11 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
+@@ -265,6 +383,11 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
        if(pa == 0)
          panic("kfree");
        char *v = p2v(pa);
@@ -938,7 +1056,7 @@ index 5326d14..c186376 100644
        kfree(v);
        *pte = 0;
      }
-@@ -311,6 +429,7 @@ copyuvm(pde_t *pgdir, uint sz)
+@@ -311,6 +434,7 @@ copyuvm(pde_t *pgdir, uint sz)
  {
    pde_t *d;
    pte_t *pte;
@@ -946,7 +1064,7 @@ index 5326d14..c186376 100644
    uint pa, i, flags;
    char *mem;
  
-@@ -319,10 +438,18 @@ copyuvm(pde_t *pgdir, uint sz)
+@@ -319,10 +443,18 @@ copyuvm(pde_t *pgdir, uint sz)
    for(i = 0; i < sz; i += PGSIZE){
      if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
        panic("copyuvm: pte should exist");
