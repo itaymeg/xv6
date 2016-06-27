@@ -7,6 +7,19 @@
 #include "mmu.h"
 #include "proc.h"
 
+int sys_mount(void) {
+	char* path;
+	int par;
+
+	if(argptr(0,&path,sizeof(char*)) <  0) {
+		return -1;
+	}
+	if(argint(1,&par) <  0) {
+		return -1;
+	}
+	int ans = mount(path,par);
+	return ans;
+}
 int
 sys_fork(void)
 {

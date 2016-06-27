@@ -34,6 +34,8 @@ struct logheader {
   int n;   
   int block[LOGSIZE];
 };
+extern int pIdx;
+struct superblock sb[4];
 
 struct log {
   struct spinlock lock;
@@ -57,9 +59,9 @@ initlog(int dev)
 
   struct superblock sb;
   initlock(&log.lock, "log");
-  readsb(dev, &sb);
-  log.start = sb.logstart;
-  log.size = sb.nlog;
+  readsb(dev, sb);
+  log.start = sb[pIdx].logstart+ sb[pIdx].offset;
+  log.size = sb[pIdx].nlog;
   log.dev = dev;
   recover_from_log();
 }

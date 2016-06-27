@@ -18,6 +18,7 @@ struct superblock {
   uint logstart;     // Block number of first log block
   uint inodestart;   // Block number of first inode block
   uint bmapstart;    // Block number of first free map block
+  uint offset;       // offset from start
 };
 
 #define NDIRECT 12

@@ -10,6 +10,7 @@
 #include "fs.h"
 #include "stat.h"
 #include "param.h"
+#include "mbr.h"
 
 #ifndef static_assert
 #define static_assert(a, b) do { switch (0) case 0: case (a): ; } while (0)
@@ -31,6 +32,8 @@ struct superblock sb;
 char zeroes[BSIZE];
 uint freeinode = 1;
 uint freeblock;
+int offset;  // partion offset in the fs
+MBR mbr;
 
 
 void balloc(int);
@@ -68,6 +71,9 @@ int
 main(int argc, char *argv[])
 {
   int i, cc, fd;
+  int aIdx, bIdx;
+  int bootBlockFD;
+  char bootBlock[BSIZE];
   uint rootino, inum, off;
   struct dirent de;
   char buf[BSIZE];
@@ -76,7 +82,7 @@ main(int argc, char *argv[])
 
   static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
 
-  if(argc < 2){
+  if(argc < 4){
     fprintf(stderr, "Usage: mkfs fs.img files...\n");
     exit(1);
   }
@@ -89,6 +95,16 @@ main(int argc, char *argv[])
     perror(argv[1]);
     exit(1);
   }
+  //read the boot block into a buffer
+  bootBlockFD = open(argv[2],O_RDONLY);
+  read(bootBlockFD,bootBlock,BSIZE);
+  close(bootBlockFD);
+
+  //set mbr's magic
+  *(mbr.magic) = *(bootBlock + BSIZE-2);
+  *(mbr.magic+1) = *(bootBlock + BSIZE-1);
+
+
 
   // 1 fs block = 1 disk sector
   nmeta = 2 + nlog + ninodeblocks + nbitmap;
@@ -170,7 +186,7 @@ main(int argc, char *argv[])
 void
 wsect(uint sec, void *buf)
 {
-  if(lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE){
+  if(lseek(fsfd, (sec +offset) * BSIZE, 0) != (sec  + offset)* BSIZE){
     perror("lseek");
     exit(1);
   }
@@ -210,7 +226,7 @@ rinode(uint inum, struct dinode *ip)
 void
 rsect(uint sec, void *buf)
 {
-  if(lseek(fsfd, sec * BSIZE, 0) != sec * BSIZE){
+  if(lseek(fsfd, (sec +offset)* BSIZE, 0) != (sec + offset) * BSIZE){
     perror("lseek");
     exit(1);
   }
