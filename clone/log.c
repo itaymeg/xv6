@@ -34,7 +34,7 @@ struct logheader {
   int n;   
   int block[LOGSIZE];
 };
-extern int pIdx;
+extern uint pIdx;
 struct superblock sb[4];
 
 struct log {
@@ -56,8 +56,6 @@ initlog(int dev)
 {
   if (sizeof(struct logheader) >= BSIZE)
     panic("initlog: too big logheader");
-
-  struct superblock sb;
   initlock(&log.lock, "log");
   readsb(dev, sb);
   log.start = sb[pIdx].logstart+ sb[pIdx].offset;

@@ -32,3 +32,4 @@ struct partition {
 };
 
 typedef struct mbr MBR;
+#define NO_PARTITION -1
