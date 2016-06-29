@@ -18,6 +18,9 @@
 
 #define NINODES 200
 
+#define PROTECT_FD(x) {if(x < 0) {perror("didnt work");exit(1);}}
+int cnt = 0;
+#define DEBUG {printf("got here %d",cnt); cnt++;}
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
 
@@ -79,85 +82,74 @@ void clearFS(uint sizeInBlocks) {
 	}
 }
 
-
 int
 main(int argc, char *argv[])
 {
 	int i, cc, fd;
-	int bootBlockFD,kernelFD;
-	int blockNumInFS;
-	char bootBlock[BSIZE];
 	uint rootino, inum, off;
-	int hasInitAndShell;
 	struct dirent de;
-	memset(&de,0,sizeof(struct dirent));
-	char buf[BSIZE];
 	struct dinode din;
-
+	int bootFlag = FALSE;
+	int initFound = FALSE;
+	int shellFound = FALSE;
+	char buf[BSIZE];
+	char buffer[BSIZE];
+	char bootBlock[BSIZE];
+	int kernelFD = 0,bootBlockFD = 0, blockNumInFS = 1;
 
 	static_assert(sizeof(int) == 4, "Integers must be 4 bytes!");
-
+	DEBUG
 	if(argc < 4){
 		fprintf(stderr, "Usage: mkfs fs.img bootblock kernel files...\n");
 		exit(1);
 	}
-
+	DEBUG
 	assert((BSIZE % sizeof(struct dinode)) == 0);
 	assert((BSIZE % sizeof(struct dirent)) == 0);
 
 	fsfd = open(argv[1], O_RDWR|O_CREAT|O_TRUNC, 0666);
-	if(fsfd < 0){
-		perror(argv[1]);
-		exit(1);
-	}
-	//read the boot block into a buffer
 	bootBlockFD = open(argv[2],O_RDONLY);
+	kernelFD = open(argv[3],O_RDONLY);
 	read(bootBlockFD,bootBlock,BSIZE);
 	close(bootBlockFD);
-
-	//set mbr's magic
-	*(mbr.magic) = *(bootBlock + BSIZE-2);
-	*(mbr.magic+1) = *(bootBlock + BSIZE-1);
-
+	*(mbr.magic) = *(bootBlock + BSIZE - 2);
+	*(mbr.magic + 1) = *(bootBlock + BSIZE - 1);
+	memmove(mbr.bootstrap, bootBlock, BSIZE);
+	offset = 0;
 	clearFS(FSSIZE);
 
-	//write kernel into fs
-	kernelFD = open(argv[3],O_RDONLY);
-	blockNumInFS = 1; // we moved the boot block to be the first block
-	while(read(kernelFD,buf,BSIZE) > 0) {
-		wsect(blockNumInFS,buf);
-		int idx;
-		for(idx = 0; idx < BSIZE; ++idx) {
-			buf[idx] = 0;
-		}
-		++blockNumInFS;
+	DEBUG
+	//READ KERNEL
+	while(read(kernelFD,buffer,BSIZE)>0){
+		wsect(blockNumInFS,buffer);
+		blockNumInFS++;
+		clearBuf(buffer);
 	}
 	close(kernelFD);
-	//for every partition, prints its meta info
-	for(i = 0; i < 4; ++i) {
-		//	  nmeta = 2 + nlog + ninodeblocks + nbitmap;
-		freeinode = 1;
-		nblocks = FSSIZE - nmeta;
-		nmeta = 1 + nlog +ninodeblocks+ nbitmap;
 
-		sb.size = xint(FSSIZE);
+	DEBUG
+	for(i=0;i<4;i++){
+		freeinode = 1;
+		nmeta = 1 + nlog + ninodeblocks + nbitmap;
+		nblocks = PARTITION_SIZE - nmeta;
+		DEBUG
+		sb.size = xint(PARTITION_SIZE);
 		sb.nblocks = xint(nblocks);
 		sb.ninodes = xint(NINODES);
 		sb.nlog = xint(nlog);
 		sb.logstart = xint(1);
 		sb.inodestart = xint(1+nlog);
-		sb.bmapstart = xint(nmeta);
+		sb.bmapstart = xint(1+nlog+ninodeblocks);
+		mbr.partitions[i].size = PARTITION_SIZE;
+		mbr.partitions[i].flags = PART_ALLOCATED;
+		mbr.partitions[i].offset = PARTITION_SIZE*i + blockNumInFS;
+		offset = PARTITION_SIZE*i + blockNumInFS;
+		mbr.partitions[i].type = FS_INODE;
 		printf("nmeta %d (boot, super, log blocks %u inode blocks %u, bitmap blocks %u) blocks %d total %d\n",
 				nmeta, nlog, ninodeblocks, nbitmap, nblocks,PARTITION_SIZE);
-		mbr.partitions[i].flags = PART_ALLOCATED;
-		mbr.partitions[i].type = FS_INODE;
-		mbr.partitions[i].offset =PARTITION_SIZE*i+ blockNumInFS;
-		offset = PARTITION_SIZE*i+ blockNumInFS;
-		mbr.partitions[i].size = PARTITION_SIZE;
 
 		freeblock = nmeta;     // the first free block that we can allocate
-		wsect(0,(char *)&sb);
-
+		wsect(0, (char *)&sb);
 		rootino = ialloc(T_DIR);
 		assert(rootino == ROOTINO);
 		bzero(&de, sizeof(de));
@@ -169,20 +161,19 @@ main(int argc, char *argv[])
 		strcpy(de.name, "..");
 		iappend(rootino, &de, sizeof(de));
 		int k;
-		for(k = 4; k < argc; ++k){
+		for(k = 4; k < argc; k++){
 			assert(index(argv[k], '/') == 0);
-			fd = open(argv[k], 0);
+			fd = open(argv[k], O_RDONLY);
 			if(*argv[k] == '_') {
 				++argv[k];
 			}
-			size_t length = strlen(argv[k]);
+			size_t length = strlen(argv[k]) + 1;
 			char file[length];
 			strncpy(file,argv[k],length);
-			//			if(*file == '_'){
-			//				file++;
-			//			}
-			if(strncmp(file,"sh",1) == 0 && strncmp(file,"init",4) == 0){ // we need to know if bootable
-				hasInitAndShell = TRUE;
+			if(strncmp(file,"init",5) == 0) {
+				initFound = TRUE;
+			} else if(strncmp(file,"sh",3) == 0) {
+				shellFound = TRUE;
 			}
 
 			inum = ialloc(T_FILE);
@@ -197,52 +188,23 @@ main(int argc, char *argv[])
 
 			close(fd);
 		}
-
-		if(hasInitAndShell) { // a partition is bootable if it holds shell and init processes
-			mbr.partitions[i].flags = mbr.partitions[i].flags | PART_BOOTABLE;
+		DEBUG
+		if(initFound && shellFound && !bootFlag){
+			mbr.partitions[i].flags |= PART_BOOTABLE;
+			bootFlag = 1;
 		}
-
 		// fix size of root inode dir
 		rinode(rootino, &din);
-		off = ((xint(din.size)/BSIZE) + 1) * BSIZE;
+		off = xint(din.size);
+		off = ((off/BSIZE) + 1) * BSIZE;
 		din.size = xint(off);
 		winode(rootino, &din);
+
 		balloc(freeblock);
 	}
-	//
-	//
-	//
-	//	for(i = 4; i < argc; i++){
-	//		assert(index(argv[i], '/') == 0);
-	//
-	//		if((fd = open(argv[i], 0)) < 0){
-	//			perror(argv[i]);
-	//			exit(1);
-	//		}
-	//
-	//		// Skip leading _ in name when writing to file system.
-	//		// The binaries are named _rm, _cat, etc. to keep the
-	//		// build operating system from trying to execute them
-	//		// in place of system binaries like rm and cat.
-	//		if(argv[i][0] == '_')
-	//			++argv[i];
-	//
-	//		inum = ialloc(T_FILE);
-	//
-	//		bzero(&de, sizeof(de));
-	//		de.inum = xshort(inum);
-	//		strncpy(de.name, argv[i], DIRSIZ);
-	//		iappend(rootino, &de, sizeof(de));
-	//
-	//		while((cc = read(fd, buf, sizeof(buf))) > 0)
-	//			iappend(inum, buf, cc);
-	//
-	//		close(fd);
-	//	}
+	DEBUG
 	offset = 0;
-	//write mbr to first block
-	wsect(0,(char *)&mbr);
-
+	wsect(0, (char *)&mbr);
 	exit(0);
 }
 
